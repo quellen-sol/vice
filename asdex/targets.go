@@ -182,6 +182,8 @@ func tagSecondLine(t target, fieldElevation float32) string {
 		return actype + " LUAW " + trk.TowerRunway
 	case t.surface && trk.ReadyForDeparture:
 		return actype + " RDY " + trk.TowerRunway
+	case t.surface && trk.HoldingShortOf != "":
+		return actype + " HS " + trk.HoldingShortOf
 	case t.surface && trk.TrueAltitude < fieldElevation+50:
 		return actype // on the ground
 	}

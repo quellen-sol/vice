@@ -50,6 +50,8 @@ func TestTowerCommands(t *testing.T) {
 		{"skywest 8712 wind three three zero at one zero runway three five left cleared to land", "SKW8712 CTL"},
 		{"southwest 739 runway three five right wind calm cleared for takeoff", "SWA739 CTO"},
 		{"skywest 8712 go-around", "SKW8712 GOAR"},
+		{"skywest 8712 cross runway three five left", "SKW8712 CROSS"},
+		{"southwest 739 cross runway 35 left", "SWA739 CROSS"},
 		// A garbled callsign can leave a word unmatched; what follows
 		// isn't heard as a speed for an aircraft on the ground.
 		{"southwest 739 zulu runway three five right line up and wait", "SWA739 LUAW"},

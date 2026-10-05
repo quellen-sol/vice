@@ -179,6 +179,7 @@ const (
 	cmdClearedForTakeoff = "CTO"
 	cmdLineUpAndWait     = "LUAW"
 	cmdGoAround          = "GOAR"
+	cmdCrossRunway       = "CROSS"
 )
 
 // runTowerCommand runs command if it is one of the tower's runway
@@ -195,6 +196,8 @@ func (s *Sim) runTowerCommand(tcw TCW, callsign av.ADSBCallsign, command string)
 		clearance = s.lineUpAndWait
 	case cmdGoAround:
 		clearance = s.towerGoAround
+	case cmdCrossRunway:
+		clearance = s.towerCrossRunway
 	default:
 		return nil, false, nil
 	}
@@ -215,6 +218,13 @@ func (s *Sim) runTowerCommand(tcw TCW, callsign av.ADSBCallsign, command string)
 			return clearance(ac)
 		})
 	return intent, true, err
+}
+
+func (s *Sim) towerCrossRunway(ac *Aircraft) speech.CommandIntent {
+	if rwy, ok := s.crossRunway(ac); ok {
+		return speech.CrossRunwayIntent{Runway: rwy}
+	}
+	return speech.MakeUnableIntent("unable, we're not holding short of a runway")
 }
 
 func (s *Sim) clearToLand(ac *Aircraft) speech.CommandIntent {
@@ -242,6 +252,11 @@ func (s *Sim) clearForTakeoff(ac *Aircraft) speech.CommandIntent {
 	if intent != nil {
 		return intent
 	}
+	if ac.Ground != nil {
+		// It lines up if it hasn't and then rolls.
+		s.groundClearForTakeoff(ac)
+		return speech.ClearedForTakeoffIntent{Runway: runway.Base()}
+	}
 
 	dep := (*queue)[idx]
 	*queue = util.DeleteSliceElement(*queue, idx)
@@ -254,6 +269,9 @@ func (s *Sim) lineUpAndWait(ac *Aircraft) speech.CommandIntent {
 	_, runway, _, _, intent := s.departureAtRunway(ac)
 	if intent != nil {
 		return intent
+	}
+	if ac.Ground != nil {
+		s.groundLineUp(ac)
 	}
 	ac.LinedUp = true
 	return speech.LineUpAndWaitIntent{Runway: runway.Base()}
@@ -292,6 +310,13 @@ const maxTowerReady = 3
 // call the tower ready, a few at a time, in the order they joined it.
 func (s *Sim) callTowerReady(depState *RunwayLaunchState, airport av.ICAOAirportCode,
 	depRunway av.RunwayID, now Time) {
+	// Departures the sim moves on the ground leave their gates when they
+	// join the queue and call the tower when they reach the runway.
+	for _, queue := range [][]DepartureAircraft{depState.ReleasedIFR, depState.ReleasedVFR} {
+		for _, dep := range queue {
+			s.startTaxiOut(s.Aircraft[dep.ADSBCallsign])
+		}
+	}
 	if s.prespawn {
 		// Let them call once the sim is running.
 		return
@@ -314,7 +339,7 @@ func (s *Sim) callTowerReady(depState *RunwayLaunchState, airport av.ICAOAirport
 		for i := range *queue {
 			dep := &(*queue)[i]
 			ac := s.Aircraft[dep.ADSBCallsign]
-			if ac.ReadyForDeparture {
+			if ac.ReadyForDeparture || ac.Ground != nil {
 				continue
 			}
 			if dep.ReadyCallTime.IsZero() {
@@ -356,7 +381,9 @@ func (s *Sim) checkLandingClearance(ac *Aircraft) {
 // mustGoAroundWithoutClearance reports whether an arrival reaching the
 // runway has to go around because a human tower hasn't cleared it to land.
 func (s *Sim) mustGoAroundWithoutClearance(ac *Aircraft) bool {
-	return ac.Nav.Approach.Assigned != nil && !ac.ClearedToLand && s.hasHumanTower(ac.ArrivalAirport)
+	// While the sim warms up, the previous controller cleared them.
+	return !s.prespawn && ac.Nav.Approach.Assigned != nil && !ac.ClearedToLand &&
+		s.hasHumanTower(ac.ArrivalAirport)
 }
 
 // queuedDepartureRunway returns the runway whose queue the departure is in.
@@ -440,8 +467,15 @@ func (s *Sim) resequenceTowerGoArounds() {
 func (s *Sim) surfaceTracks() map[av.ADSBCallsign]*Track {
 	var tracks map[av.ADSBCallsign]*Track
 	for callsign, ac := range util.SortedMap(s.Aircraft) {
-		if s.isRadarVisible(ac) || !s.hasHumanTower(towerAirport(ac)) ||
-			(ac.WaitingForLaunch && !ac.ReadyForDeparture && !ac.LinedUp) {
+		if s.isRadarVisible(ac) || !s.hasHumanTower(towerAirport(ac)) {
+			continue
+		}
+		if g := ac.Ground; g != nil {
+			if g.Phase == GroundParked {
+				continue // at a gate, transponder off
+			}
+		} else if ac.WaitingForLaunch && !ac.ReadyForDeparture && !ac.LinedUp {
+			// Without ground movement, it's notionally still at the gate.
 			continue
 		}
 		if tracks == nil {
@@ -474,4 +508,7 @@ func (s *Sim) setTowerTrackState(ac *Aircraft, trk *Track) {
 	trk.ReadyForDeparture = ac.ReadyForDeparture
 	trk.LinedUp = ac.LinedUp
 	trk.ClearedToLand = ac.ClearedToLand
+	if g := ac.Ground; g != nil && g.Phase == GroundHoldingToCross {
+		trk.HoldingShortOf = g.CrossRunway
+	}
 }

@@ -21,7 +21,7 @@ import (
 // isTowerCommand reports whether cmd is one of the tower's runway clearances.
 func isTowerCommand(cmd string) bool {
 	switch cmd {
-	case "CTL", "CTO", "LUAW", "GOAR":
+	case "CTL", "CTO", "LUAW", "GOAR", "CROSS":
 		return true
 	}
 	return false
@@ -29,7 +29,7 @@ func isTowerCommand(cmd string) bool {
 
 // validateTowerCommand checks that a runway clearance suits the aircraft:
 // landing clearances and go-arounds are for arrivals, takeoff clearances for
-// departures.
+// departures; either may be cleared across a runway.
 func validateTowerCommand(cmd string, ac Aircraft) string {
 	if !ac.TowerControl {
 		return "runway clearance from a controller not working the tower"
@@ -71,6 +71,13 @@ func registerTowerCommands() {
 		"[runway {tower_runway}] line|lineup [up] [and] wait [runway {tower_runway}]",
 		func(before, after *string) string { return "LUAW" },
 		WithName("line_up_and_wait"),
+		WithPriority(towerPriority),
+		WithTowerOnly(),
+	)
+	registerSTTCommand(
+		"cross [runway] {tower_runway}",
+		func(rwy string) string { return "CROSS" },
+		WithName("cross_runway"),
 		WithPriority(towerPriority),
 		WithTowerOnly(),
 	)

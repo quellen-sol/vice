@@ -66,6 +66,7 @@ func TestTagSecondLine(t *testing.T) {
 		{target{trk: &sim.Track{FlightPlan: fp, RadarTrack: av.RadarTrack{TrueAltitude: 6830}}}, "B738 068"},
 		{target{trk: &sim.Track{FlightPlan: fp, RadarTrack: av.RadarTrack{TrueAltitude: 6830}, ClearedToLand: true}}, "B738 068 CLR"},
 		{target{trk: &sim.Track{}, surface: true}, ""},
+		{target{trk: &sim.Track{FlightPlan: fp, HoldingShortOf: "35L"}, surface: true}, "B738 HS 35L"},
 		// Below radar coverage, on the takeoff roll and just airborne.
 		{target{trk: &sim.Track{FlightPlan: fp, RadarTrack: av.RadarTrack{TrueAltitude: 6187}}, surface: true}, "B738"},
 		{target{trk: &sim.Track{FlightPlan: fp, RadarTrack: av.RadarTrack{TrueAltitude: 6330}}, surface: true}, "B738 063"},

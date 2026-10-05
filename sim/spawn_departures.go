@@ -397,6 +397,10 @@ func (s *Sim) addDepartureToPool(ac *Aircraft, runway av.RunwayID, gateDelay tim
 
 	ac.WaitingForLaunch = true
 	s.addAircraft(*ac)
+	if added, ok := s.Aircraft[ac.ADSBCallsign]; ok {
+		// At an airport whose surface the sim knows, it starts at a gate.
+		s.departureGround(added, runway)
+	}
 
 	// The journey begins...
 	depState := s.DepartureState[ac.DepartureAirport][runway]

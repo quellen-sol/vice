@@ -230,6 +230,16 @@ func (s *Sim) landAtWaypoint(ac *Aircraft, wp av.Waypoint) bool {
 		s.goAround(ac)
 		return false
 	}
+	if s.runwayOccupied(ac) {
+		// The pilot sees traffic on the runway.
+		s.goAround(ac)
+		return false
+	}
+	if s.startLandingRollout(ac) {
+		// It rolls out and taxis to a gate rather than leaving the sim.
+		s.recordArrivalLanding(ac, ac.Nav.Approach.Assigned.Runway)
+		return false
+	}
 
 	var runway string
 	if ac.Nav.Approach.Assigned != nil {
@@ -570,6 +580,12 @@ func (s *Sim) updateState() {
 			if !ok {
 				// Gone already: a scripted control command run for an
 				// aircraft earlier in the order can delete another one.
+				continue
+			}
+			if ac.Ground != nil {
+				// On the ground, the sim moves it rather than the flight
+				// model.
+				s.updateGround(ac)
 				continue
 			}
 			if ac.HoldForRelease && !ac.Released {

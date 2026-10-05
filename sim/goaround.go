@@ -28,6 +28,10 @@ func (s *Sim) contactDeparture(ac *Aircraft, fp *FlightPlan) {
 }
 
 func (s *Sim) isRadarVisible(ac *Aircraft) bool {
+	if ac.Ground != nil {
+		// On the ground, it's only seen by ASDE-X.
+		return false
+	}
 	filters := s.State.FacilityAdaptation.Filters
 	return !filters.SurfaceTracking.Inside(ac.Position(), int(ac.Altitude()))
 }

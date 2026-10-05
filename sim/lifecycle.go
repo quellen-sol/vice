@@ -67,6 +67,7 @@ func (s *Sim) Activate(lg *log.Logger, provider *wx.Provider) {
 	restoreControllerFields(s.ControlPositions)
 	restoreControllerFields(s.State.Controllers)
 	restoreERAMCoordinationGeometry(s.State.ERAMCoordination, lg)
+	s.restoreGroundStates()
 }
 
 // restoreERAMCoordinationGeometry re-derives the json:"-" geometry (zone-area

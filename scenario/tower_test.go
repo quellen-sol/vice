@@ -18,6 +18,7 @@ import (
 	"github.com/mmp/vice/math"
 	"github.com/mmp/vice/sim"
 	"github.com/mmp/vice/speech/stt"
+	"github.com/mmp/vice/surface"
 	"github.com/mmp/vice/util"
 	"github.com/mmp/vice/wx"
 )
@@ -142,6 +143,74 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 		}
 	}
 
+	// The sim moves aircraft on KCOS's surface.
+	kcos, err := surface.LoadAirport("KCOS")
+	if err != nil {
+		t.Fatal(err)
+	}
+	atGate := func(p math.Point2LL) bool {
+		for _, g := range kcos.Gates {
+			if kcos.Distance(p, g.Location) < 0.02 {
+				return true
+			}
+		}
+		return false
+	}
+	// onRamp reports whether the aircraft is parked at its gate or on its
+	// way into or out of it, between the gate and the taxiway. (The sim
+	// moves aircraft straight between the two, and gates' lines can pass
+	// close to the gates next to them.)
+	onRamp := func(ac *sim.Aircraft) bool {
+		g := ac.Ground
+		return g.Phase == sim.GroundParked || (g.Phase == sim.GroundTaxiOut && g.LastNode == -1) ||
+			(g.Phase == sim.GroundTaxiIn && len(g.Path) == 1)
+	}
+	// onRunway reports whether p is on the runway with the given end.
+	onRunway := func(end string, p math.Point2LL) bool {
+		rwy, _, ok := kcos.LookupRunway(end)
+		if !ok {
+			t.Fatalf("%s: no such runway at KCOS", end)
+		}
+		a, b := kcos.Local(rwy.Ends[0].Threshold), kcos.Local(rwy.Ends[1].Threshold)
+		return math.PointSegmentDistance(kcos.Local(p), a, b) < 0.02
+	}
+	// sameRunway reports whether the two runway ends are of the same runway.
+	sameRunway := func(a, b string) bool {
+		rwy, _, ok := kcos.LookupRunway(a)
+		return ok && rwy.HasEnd(b)
+	}
+	// runwayTraffic returns what keeps the tower from letting the aircraft
+	// onto the runway, if anything: someone else on it or lined up, or an
+	// arrival within nm out.
+	runwayTraffic := func(ac *sim.Aircraft, end string, within float32) string {
+		for other := range util.SortedMapValues(s.Aircraft) {
+			if other == ac {
+				continue
+			}
+			if g := other.Ground; g != nil {
+				if g.Phase != sim.GroundParked && onRunway(end, other.Position()) {
+					return fmt.Sprintf("%s on the runway (%s)", other.ADSBCallsign, g)
+				}
+				if (g.Phase == sim.GroundLiningUp || g.Phase == sim.GroundLinedUp) && sameRunway(end, g.Runway) {
+					return fmt.Sprintf("%s lined up on %s", other.ADSBCallsign, g.Runway)
+				}
+			} else if other.IsDeparture() {
+				if !other.WaitingForLaunch && other.Altitude() < fieldElevation+100 && onRunway(end, other.Position()) {
+					return fmt.Sprintf("%s departing", other.ADSBCallsign)
+				}
+			} else if appr := other.Nav.Approach.Assigned; other.IsArrival() && appr != nil && sameRunway(end, appr.Runway) &&
+				!other.WentAround {
+				if d := math.NMDistance2LL(other.Position(), appr.Threshold); d < within {
+					return fmt.Sprintf("%s landing, %.1fnm out", other.ADSBCallsign, d)
+				}
+			}
+		}
+		return ""
+	}
+	runwayClear := func(ac *sim.Aircraft, end string, within float32) bool {
+		return runwayTraffic(ac, end, within) == ""
+	}
+
 	type arrival struct {
 		firstDistance  float32 // distance from the threshold when first seen
 		switchDistance float32 // distance from the threshold when first on the tower's frequency
@@ -149,16 +218,23 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 		cleared        bool
 		wentAround     bool
 		sentToApproach bool
+		touchedDown    bool
+		exited         bool
+		parked         bool
 		gone           bool
+		runway         string
 	}
 	arrivals := make(map[av.ADSBCallsign]*arrival)
 	var goAround av.ADSBCallsign // the arrival left without a landing clearance
 	type departure struct {
 		ready, linedUp, clearedForTakeoff, sentToDeparture bool
 		sentAltitude                                       float32
-		sentStep                                           int
+		linedUpStep, clearedStep, sentStep                 int
 	}
 	departures := make(map[av.ADSBCallsign]*departure)
+	crossings := 0
+	overlapped := make(map[[2]av.ADSBCallsign]bool)
+	stoppedSince := make(map[av.ADSBCallsign]int)
 
 	const steps = 3600
 	for step := range steps {
@@ -180,8 +256,61 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 			}
 		}
 
+		// Aircraft taxiing the same way keep their distance.
+		for ac := range util.SortedMapValues(s.Aircraft) {
+			if ac.Ground == nil || ac.Ground.Speed == 0 ||
+				(ac.Ground.Phase != sim.GroundTaxiOut && ac.Ground.Phase != sim.GroundTaxiIn) {
+				continue
+			}
+			for other := range util.SortedMapValues(s.Aircraft) {
+				if other == ac || other.Ground == nil || other.Ground.Speed == 0 || other.Ground.Phase != ac.Ground.Phase ||
+					math.HeadingDifference(other.Ground.Heading, ac.Ground.Heading) > 90 || (onRamp(ac) && onRamp(other)) {
+					continue
+				}
+				if d := kcos.Distance(ac.Position(), other.Position()); d < 0.015 && ac.ADSBCallsign < other.ADSBCallsign {
+					t.Errorf("%s and %s taxiing %.0f feet apart", ac.ADSBCallsign, other.ADSBCallsign,
+						d*math.NauticalMilesToFeet)
+				}
+			}
+		}
+		// Nobody's stuck.
+		for ac := range util.SortedMapValues(s.Aircraft) {
+			if g := ac.Ground; g == nil || g.Speed > 0 || !(g.Phase == sim.GroundTaxiOut || g.Phase == sim.GroundTaxiIn ||
+				g.Phase == sim.GroundRollout || g.Phase == sim.GroundLiningUp) {
+				delete(stoppedSince, ac.ADSBCallsign)
+			} else if since, ok := stoppedSince[ac.ADSBCallsign]; !ok {
+				stoppedSince[ac.ADSBCallsign] = step
+			} else if step-since == 600 {
+				t.Errorf("%s: stopped for 10 minutes (%s), giving way to %q", ac.ADSBCallsign, g, g.GivingWay)
+			}
+		}
+		// And nobody taxis into anybody, moving or not, other than on the
+		// ramps.
+		for ac := range util.SortedMapValues(s.Aircraft) {
+			for other := range util.SortedMapValues(s.Aircraft) {
+				pair := [2]av.ADSBCallsign{ac.ADSBCallsign, other.ADSBCallsign}
+				if ac.ADSBCallsign >= other.ADSBCallsign || ac.Ground == nil || other.Ground == nil ||
+					ac.Ground.Phase == sim.GroundParked || other.Ground.Phase == sim.GroundParked ||
+					(onRamp(ac) && onRamp(other)) || overlapped[pair] {
+					continue
+				}
+				if d := kcos.Distance(ac.Position(), other.Position()); d < 0.01 {
+					overlapped[pair] = true
+					t.Errorf("%s (%s) and %s (%s) %.0f feet apart", ac.ADSBCallsign, ac.Ground, other.ADSBCallsign,
+						other.Ground, d*math.NauticalMilesToFeet)
+				}
+			}
+		}
+
 		for ac := range util.SortedMapValues(s.Aircraft) {
 			callsign := ac.ADSBCallsign
+			// Aircraft that ask to cross a runway are cleared across once
+			// it's clear.
+			if g := ac.Ground; g != nil && g.Phase == sim.GroundHoldingToCross && g.RequestedCrossing &&
+				ac.ControllerFrequency == sim.ControlPosition(tower) && runwayClear(ac, g.CrossRunway, 3) {
+				crossings++
+				run(callsign, "CROSS", "cross")
+			}
 			switch {
 			case ac.IsArrival() && ac.ArrivalAirport == "KCOS":
 				ar := arrivals[callsign]
@@ -192,6 +321,7 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 				ar.lastDistance = math.NMDistance2LL(ac.Position(), ap.Location)
 				onTower := ac.ControllerFrequency == sim.ControlPosition(tower)
 				if appr := ac.Nav.Approach.Assigned; appr != nil {
+					ar.runway = appr.Runway
 					d := math.NMDistance2LL(ac.Position(), appr.Threshold)
 					if ar.firstDistance == 0 {
 						ar.firstDistance = d
@@ -201,11 +331,32 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 					}
 				}
 
+				// After landing, it rolls out, turns off the runway before its
+				// end and taxis to a gate.
+				if g := ac.Ground; g != nil {
+					ar.touchedDown = true
+					if appr := ac.Nav.Approach.Assigned; g.Phase == sim.GroundTaxiIn && !ar.exited && appr != nil {
+						ar.exited = true
+						length := math.NMDistance2LL(appr.Threshold, appr.OppositeThreshold)
+						if d := math.NMDistance2LL(ac.Position(), appr.Threshold); d > length {
+							t.Errorf("%s: turned off the runway %.2fnm from the threshold of a %.2fnm runway",
+								callsign, d, length)
+						}
+					}
+					if g.Phase == sim.GroundParked {
+						ar.parked = true
+						if !atGate(ac.Position()) {
+							t.Errorf("%s: parked away from a gate", callsign)
+						}
+					}
+				}
+
 				if ac.WentAround {
 					if !ar.wentAround {
 						ar.wentAround = true
 						if callsign != goAround {
-							t.Errorf("%s: went around with a landing clearance", callsign)
+							t.Errorf("%s: went around with a landing clearance: %s", callsign,
+								runwayTraffic(ac, ar.runway, 0))
 						}
 					}
 					if !ar.sentToApproach && ac.Altitude() > fieldElevation+1500 {
@@ -229,6 +380,13 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 				if dep == nil {
 					dep = &departure{}
 					departures[callsign] = dep
+					// Departures start at a gate. (Those that were already
+					// taxiing when the sim started are an exception.)
+					if ac.Ground == nil && ac.WaitingForLaunch {
+						t.Errorf("%s: departure without ground movement", callsign)
+					} else if step > 0 && !atGate(ac.Position()) {
+						t.Errorf("%s: departure didn't start at a gate", callsign)
+					}
 				}
 				if ac.FlightPlan != nil && ac.FlightPlan.TrackingController != approach {
 					t.Errorf("%s: departure tracked by %q, want %q", callsign, ac.FlightPlan.TrackingController, approach)
@@ -245,22 +403,40 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 						if trk == nil || !trk.ReadyForDeparture || trk.TowerRunway == "" {
 							t.Errorf("%s: ready departure's surface track: %+v", callsign, trk)
 						}
+						// It called ready stopped at the hold-short line.
+						if g := ac.Ground; g == nil || g.Phase != sim.GroundHoldingShort || g.Speed != 0 {
+							t.Errorf("%s: called ready but not holding short: %+v", callsign, g)
+						}
 					}
 					dep.ready = true
 					if ac.ControllerFrequency != sim.ControlPosition(tower) {
 						t.Errorf("%s: called ready on %q's frequency", callsign, ac.ControllerFrequency)
 					}
-					// Line up and wait first, then clear for takeoff a minute
-					// later.
+					// Line up and wait when the runway's clear with room
+					// ahead of the next arrival, then clear for takeoff once
+					// in position.
+					g := ac.Ground
+					if g == nil {
+						t.Fatalf("%s: ready departure without ground movement", callsign)
+					}
 					if !dep.linedUp {
-						dep.linedUp = true
-						run(callsign, "LUAW", "wait")
-					} else if step%60 == 0 {
-						dep.clearedForTakeoff = true
-						run(callsign, "CTO", "cleared for takeoff")
-						if ac.WaitingForLaunch {
-							t.Errorf("%s: still waiting to launch after CTO", callsign)
+						if runwayClear(ac, g.Runway, 6) {
+							dep.linedUp = true
+							run(callsign, "LUAW", "wait")
 						}
+					} else if !dep.clearedForTakeoff && g.Phase == sim.GroundLinedUp {
+						if runwayClear(ac, g.Runway, 2.5) {
+							dep.clearedForTakeoff, dep.clearedStep = true, step
+							run(callsign, "CTO", "cleared for takeoff")
+						} else if dep.linedUpStep == 0 {
+							dep.linedUpStep = step
+						} else if step-dep.linedUpStep == 300 {
+							t.Errorf("%s: lined up on %s for 5 minutes: %s", callsign, g.Runway,
+								runwayTraffic(ac, g.Runway, 2.5))
+						}
+					} else if dep.clearedForTakeoff && step-dep.clearedStep > 90 {
+						t.Fatalf("%s: hasn't started its takeoff roll 90 seconds after CTO: %+v",
+							callsign, ac.Ground)
 					}
 					continue
 				}
@@ -295,12 +471,19 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 				if landed && !ar.cleared {
 					t.Errorf("%s: landed without a landing clearance", callsign)
 				}
+				if landed && !ar.parked {
+					t.Errorf("%s: left the sim without taxiing to a gate (touched down %v, exited %v)",
+						callsign, ar.touchedDown, ar.exited)
+				}
 			}
 		}
 	}
 
-	var switched, landed int
+	var switched, landed, parked int
 	for callsign, ar := range arrivals {
+		if ar.parked {
+			parked++
+		}
 		if ar.switchDistance != 0 {
 			switched++
 			// The switch happens at 6nm; the pilot changes frequency a few
@@ -334,6 +517,9 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 	if tookOff < 5 || sent < 5 {
 		t.Errorf("only %d departures took off and %d were sent to departure in an hour", tookOff, sent)
 	}
-	t.Logf("arrivals: %d switched to the tower, %d landed; departures: %d took off, %d sent to departure",
-		switched, landed, tookOff, sent)
+	if parked < 5 {
+		t.Errorf("only %d arrivals taxied to a gate", parked)
+	}
+	t.Logf("arrivals: %d switched to the tower, %d landed, %d parked at a gate; departures: %d took off, %d sent to departure; %d runway crossings",
+		switched, landed, parked, tookOff, sent, crossings)
 }

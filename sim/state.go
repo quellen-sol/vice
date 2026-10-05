@@ -663,6 +663,7 @@ type Track struct {
 	ReadyForDeparture bool
 	LinedUp           bool
 	ClearedToLand     bool
+	HoldingShortOf    string // a runway it's waiting to cross
 }
 
 func (t *Track) IsAssociated() bool {

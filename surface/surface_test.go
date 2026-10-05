@@ -253,6 +253,35 @@ func TestFindRoute(t *testing.T) {
 	}
 }
 
+func TestFindRouteEdgeCost(t *testing.T) {
+	ap := loadTestAirport(t)
+
+	// Taxiing west on A from node 5 is expensive, so the route to either
+	// end of the runway goes east.
+	cost := func(edge int, from NodeID) float32 {
+		if from == 5 && ap.Edges[edge].Other(5) == 4 {
+			return 10
+		}
+		return 0
+	}
+	r, err := ap.FindRoute(RouteRequest{From: 11, To: []NodeID{0, 2}, EdgeCost: cost})
+	if err != nil {
+		t.Fatalf("FindRoute: %v", err)
+	}
+	if want := []NodeID{11, 5, 6, 7, 2}; !slices.Equal(r.Nodes, want) {
+		t.Errorf("nodes: got %v, want %v", r.Nodes, want)
+	}
+
+	// The cost only applies in one direction.
+	r, err = ap.FindRoute(RouteRequest{From: 3, To: []NodeID{11}, EdgeCost: cost})
+	if err != nil {
+		t.Fatalf("FindRoute: %v", err)
+	}
+	if want := []NodeID{3, 4, 5, 11}; !slices.Equal(r.Nodes, want) {
+		t.Errorf("nodes: got %v, want %v", r.Nodes, want)
+	}
+}
+
 func TestFindRouteFailures(t *testing.T) {
 	ap := loadTestAirport(t)
 

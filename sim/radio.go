@@ -129,6 +129,7 @@ const (
 	PendingTransmissionSpontaneousReportingPointInSight                                // Unprompted reporting point "in sight"
 	PendingTransmissionReadyForDeparture                                               // Departure at the runway calling a human tower
 	PendingTransmissionRequestLandingClearance                                         // On short final without a landing clearance
+	PendingTransmissionRequestCrossing                                                 // Holding short of a runway it needs to cross
 )
 
 // FutureFrequencyChange represents a pilot switching to a new frequency.
@@ -262,6 +263,10 @@ func (s *Sim) contactApplies(pc PendingContact) bool {
 	case PendingTransmissionRequestLandingClearance:
 		// Moot once cleared to land or no longer on the approach.
 		return !ac.ClearedToLand && ac.Nav.Approach.Cleared
+
+	case PendingTransmissionRequestCrossing:
+		// Moot once cleared across.
+		return ac.Ground != nil && ac.Ground.Phase == GroundHoldingToCross
 
 	default:
 		// A type without a rule above is never said.
@@ -762,6 +767,15 @@ func (s *Sim) contactTransmission(pc PendingContact, ac *Aircraft, r *rand.Rand)
 		runway, _ := s.queuedDepartureRunway(ac)
 		rt = speech.MakeContactTransmission("[holding short runway {rwy}, ready for departure|ready for departure runway {rwy}|holding short {rwy}, ready]",
 			runway.Base())
+		rt.Type = speech.RadioTransmissionContact
+
+	case PendingTransmissionRequestCrossing:
+		var runway string
+		if ac.Ground != nil {
+			runway = ac.Ground.CrossRunway
+		}
+		rt = speech.MakeContactTransmission("[holding short runway {rwy}, request to cross|holding short of {rwy}, request to cross|short of runway {rwy}, requesting to cross]",
+			runway)
 		rt.Type = speech.RadioTransmissionContact
 
 	case PendingTransmissionRequestLandingClearance:

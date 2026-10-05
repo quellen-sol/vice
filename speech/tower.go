@@ -38,6 +38,15 @@ func (l LineUpAndWaitIntent) Render(rt *RadioTransmission, r *rand.Rand) {
 	rt.Add("[line up and wait|line up and wait runway {rwy}|runway {rwy}, line up and wait|lining up and waiting runway {rwy}]", l.Runway)
 }
 
+// CrossRunwayIntent is the readback of "cross runway 35L".
+type CrossRunwayIntent struct {
+	Runway string
+}
+
+func (c CrossRunwayIntent) Render(rt *RadioTransmission, r *rand.Rand) {
+	rt.Add("[cross runway {rwy}|crossing runway {rwy}|cross {rwy}]", c.Runway)
+}
+
 // GoAroundIntent is the readback of the tower's "go around".
 type GoAroundIntent struct{}
 

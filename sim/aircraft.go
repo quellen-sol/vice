@@ -90,6 +90,9 @@ type Aircraft struct {
 	ReadyForDeparture         bool // the departure has called the tower ready
 	LinedUp                   bool // line up and wait
 	SentAroundByTower         bool
+	// Ground is set while the sim moves the aircraft on the airport
+	// surface (see ground.go).
+	Ground *GroundState
 
 	FlightPlan *FlightPlan
 

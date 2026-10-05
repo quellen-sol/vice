@@ -30,6 +30,10 @@ type RouteRequest struct {
 	// to smaller aircraft are not used. If empty, edge size restrictions
 	// are ignored.
 	SizeCode string
+	// EdgeCost, if set, returns an additional cost, in nm, for taxiing
+	// along the edge from the given node, e.g. to keep clear of other
+	// traffic.
+	EdgeCost func(edge int, from NodeID) float32
 }
 
 // HoldShort is a point along a route where an aircraft must stop unless
@@ -154,6 +158,9 @@ func (ap *Airport) FindRoute(req RouteRequest) (Route, error) {
 				// Continuing along the current taxiway.
 			} else if len(req.Via) > 0 {
 				cost = length*connectorCostFactor + connectorPenaltyNM
+			}
+			if req.EdgeCost != nil {
+				cost += req.EdgeCost(ei, node)
 			}
 
 			next := stateIndex(e.Other(node), nextStage)
