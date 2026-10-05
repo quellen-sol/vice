@@ -7,6 +7,7 @@ package scenario
 import (
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,10 +20,12 @@ import (
 	"github.com/mmp/vice/wx"
 )
 
-// TestKCOSTowerScenario runs the KCOS tower scenario with the user working
-// local control (1W) and the approach controller (1A) virtual, and checks
-// that arrivals are switched to the tower on final and land, and that
-// departures talk to the tower until the tower sends them to departure.
+// TestKCOSTowerScenario works the KCOS tower scenario for an hour as local
+// control (1W), with the approach controller (1A) virtual. It clears arrivals
+// to land, lines departures up and clears them for takeoff when they call
+// ready, and sends them to departure once they're airborne. One arrival is
+// left without a landing clearance; it should go around, stay with the tower
+// and be taken away for resequencing once the tower sends it to approach.
 func TestKCOSTowerScenario(t *testing.T) {
 	db.InitDB()
 	lg := &log.Logger{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), LogDir: t.TempDir()}
@@ -66,21 +69,43 @@ func TestKCOSTowerScenario(t *testing.T) {
 	if !ok {
 		t.Fatal("KCOS not in the database")
 	}
+	fieldElevation := float32(ap.Elevation)
+
+	run := func(callsign av.ADSBCallsign, cmd, wantReadback string) {
+		t.Helper()
+		res := s.RunAircraftControlCommands(sim.TCW(tower), callsign, cmd, 0, 0)
+		if res.Error != nil {
+			t.Fatalf("%s: %s: %v", callsign, cmd, res.Error)
+		}
+		if !strings.Contains(res.ReadbackSpokenText, wantReadback) {
+			t.Errorf("%s: %s: readback %q doesn't include %q", callsign, cmd, res.ReadbackSpokenText, wantReadback)
+		}
+	}
+
 	type arrival struct {
+		firstDistance  float32 // distance from the threshold when first seen
 		switchDistance float32 // distance from the threshold when first on the tower's frequency
 		lastDistance   float32 // distance from the field
-		landed         bool
+		cleared        bool
+		wentAround     bool
+		sentToApproach bool
+		gone           bool
 	}
 	arrivals := make(map[av.ADSBCallsign]*arrival)
-	var departuresOnTower int
-	var sentCallsign av.ADSBCallsign
-	var sentAltitude float32
-	sentTime := 0
+	var goAround av.ADSBCallsign // the arrival left without a landing clearance
+	type departure struct {
+		ready, linedUp, clearedForTakeoff, sentToDeparture bool
+		sentAltitude                                       float32
+		sentStep                                           int
+	}
+	departures := make(map[av.ADSBCallsign]*departure)
 
-	for step := range 3600 {
+	const steps = 3600
+	for step := range steps {
 		s.Step(time.Second)
 
-		for callsign, ac := range s.Aircraft {
+		for ac := range util.SortedMapValues(s.Aircraft) {
+			callsign := ac.ADSBCallsign
 			switch {
 			case ac.IsArrival() && ac.ArrivalAirport == "KCOS":
 				ar := arrivals[callsign]
@@ -89,37 +114,111 @@ func TestKCOSTowerScenario(t *testing.T) {
 					arrivals[callsign] = ar
 				}
 				ar.lastDistance = math.NMDistance2LL(ac.Position(), ap.Location)
-				if appr := ac.Nav.Approach.Assigned; appr != nil &&
-					ac.ControllerFrequency == sim.ControlPosition(tower) && ar.switchDistance == 0 {
-					ar.switchDistance = math.NMDistance2LL(ac.Position(), appr.Threshold)
+				onTower := ac.ControllerFrequency == sim.ControlPosition(tower)
+				if appr := ac.Nav.Approach.Assigned; appr != nil {
+					d := math.NMDistance2LL(ac.Position(), appr.Threshold)
+					if ar.firstDistance == 0 {
+						ar.firstDistance = d
+					}
+					if onTower && ar.switchDistance == 0 {
+						ar.switchDistance = d
+					}
 				}
 
-			case ac.IsDeparture() && ac.DepartureAirport == "KCOS" && !ac.WaitingForLaunch:
+				if ac.WentAround {
+					if !ar.wentAround {
+						ar.wentAround = true
+						if callsign != goAround {
+							t.Errorf("%s: went around with a landing clearance", callsign)
+						}
+					}
+					if !ar.sentToApproach && ac.Altitude() > fieldElevation+1500 {
+						if !onTower {
+							t.Errorf("%s: on %q's frequency after going around, want the tower's", callsign, ac.ControllerFrequency)
+						}
+						ar.sentToApproach = true
+						run(callsign, "FC", "")
+					}
+				} else if onTower && !ar.cleared && ac.Nav.Approach.Cleared {
+					if goAround == "" {
+						goAround = callsign // never cleared to land
+					} else if callsign != goAround {
+						ar.cleared = true
+						run(callsign, "CTL", "cleared to land")
+					}
+				}
+
+			case ac.IsDeparture() && ac.DepartureAirport == "KCOS":
+				dep := departures[callsign]
+				if dep == nil {
+					dep = &departure{}
+					departures[callsign] = dep
+				}
 				if ac.FlightPlan != nil && ac.FlightPlan.TrackingController != approach {
 					t.Errorf("%s: departure tracked by %q, want %q", callsign, ac.FlightPlan.TrackingController, approach)
 				}
-				if callsign == sentCallsign {
+
+				if ac.WaitingForLaunch {
+					if !ac.ReadyForDeparture {
+						continue
+					}
+					if !dep.ready {
+						// The tower's client is told about it so that it can
+						// be given clearances, though it isn't radar visible.
+						trk := s.GetUserState().SurfaceTracks[callsign]
+						if trk == nil || !trk.ReadyForDeparture || trk.TowerRunway == "" {
+							t.Errorf("%s: ready departure's surface track: %+v", callsign, trk)
+						}
+					}
+					dep.ready = true
+					if ac.ControllerFrequency != sim.ControlPosition(tower) {
+						t.Errorf("%s: called ready on %q's frequency", callsign, ac.ControllerFrequency)
+					}
+					// Line up and wait first, then clear for takeoff a minute
+					// later.
+					if !dep.linedUp {
+						dep.linedUp = true
+						run(callsign, "LUAW", "wait")
+					} else if step%60 == 0 {
+						dep.clearedForTakeoff = true
+						run(callsign, "CTO", "cleared for takeoff")
+						if ac.WaitingForLaunch {
+							t.Errorf("%s: still waiting to launch after CTO", callsign)
+						}
+					}
 					continue
 				}
-				if ac.ControllerFrequency != sim.ControlPosition(tower) {
-					t.Errorf("%s: departure on %q's frequency before the tower sent it to departure",
-						callsign, ac.ControllerFrequency)
+
+				if !dep.clearedForTakeoff {
+					t.Fatalf("%s: took off without a takeoff clearance", callsign)
 				}
-				departuresOnTower++
-				// Once one is well clear of the field, send it to departure.
-				if sentCallsign == "" && ac.Altitude() > float32(ap.Elevation)+2000 {
-					res := s.RunAircraftControlCommands(sim.TCW(tower), callsign, "FC", 0, 0)
-					if res.Error != nil {
-						t.Fatalf("%s: FC: %v", callsign, res.Error)
+				if !dep.sentToDeparture {
+					if ac.ControllerFrequency != sim.ControlPosition(tower) {
+						t.Errorf("%s: on %q's frequency before the tower sent it to departure", callsign, ac.ControllerFrequency)
 					}
-					sentCallsign, sentAltitude, sentTime = callsign, ac.Altitude(), step
+					if ac.Altitude() > fieldElevation+1500 {
+						dep.sentToDeparture, dep.sentAltitude, dep.sentStep = true, ac.Altitude(), step
+						run(callsign, "FC", "")
+					}
+				} else if step-dep.sentStep == 120 {
+					if ac.ControllerFrequency != sim.ControlPosition(approach) {
+						t.Errorf("%s: on %q's frequency after FC, want %q", callsign, ac.ControllerFrequency, approach)
+					}
+					if ac.Altitude() < dep.sentAltitude+1000 {
+						t.Errorf("%s: only climbed from %.0f to %.0f in the 2 minutes after FC", callsign,
+							dep.sentAltitude, ac.Altitude())
+					}
 				}
 			}
 		}
-		// Arrivals that left the sim close to the field landed.
+
 		for callsign, ar := range arrivals {
-			if _, ok := s.Aircraft[callsign]; !ok && !ar.landed {
-				ar.landed = ar.lastDistance < 3
+			if _, ok := s.Aircraft[callsign]; !ok && !ar.gone {
+				ar.gone = true
+				landed := ar.lastDistance < 3 && !ar.wentAround
+				if landed && !ar.cleared {
+					t.Errorf("%s: landed without a landing clearance", callsign)
+				}
 			}
 		}
 	}
@@ -128,36 +227,37 @@ func TestKCOSTowerScenario(t *testing.T) {
 	for callsign, ar := range arrivals {
 		if ar.switchDistance != 0 {
 			switched++
-			// The switch happens at 6nm; the pilot changes frequency a
-			// few seconds later.
-			if ar.switchDistance > 6 || ar.switchDistance < 4.5 {
-				t.Errorf("%s: switched to tower %.1fnm from the field", callsign, ar.switchDistance)
+			// The switch happens at 6nm; the pilot changes frequency a few
+			// seconds later. (Arrivals already inside 6nm when the sim
+			// started were switched during prespawn.)
+			if ar.firstDistance > 6.5 && (ar.switchDistance > 6 || ar.switchDistance < 4.5) {
+				t.Errorf("%s: switched to tower %.1fnm from the threshold", callsign, ar.switchDistance)
 			}
 		}
-		if ar.landed {
+		if ar.gone && ar.cleared {
 			landed++
-			if ar.switchDistance == 0 {
-				t.Errorf("%s: landed without talking to the tower", callsign)
-			}
 		}
 	}
 	if switched < 5 || landed < 5 {
 		t.Errorf("only %d arrivals were switched to the tower and %d landed in an hour", switched, landed)
 	}
-	if departuresOnTower == 0 || sentCallsign == "" {
-		t.Fatalf("no departures talked to the tower")
+	if ar := arrivals[goAround]; ar == nil || !ar.wentAround || !ar.sentToApproach || !ar.gone {
+		t.Errorf("%s: arrival without a landing clearance: %+v; want it to go around, be sent to approach "+
+			"and be resequenced", goAround, ar)
 	}
 
-	// The departure the tower sent to departure is now working the
-	// (virtual) approach controller, who sends it on course and climbs it.
-	if ac, ok := s.Aircraft[sentCallsign]; ok {
-		if ac.ControllerFrequency != sim.ControlPosition(approach) {
-			t.Errorf("%s: on %q's frequency after FC, want %q", sentCallsign, ac.ControllerFrequency, approach)
+	var tookOff, sent int
+	for _, dep := range departures {
+		if dep.clearedForTakeoff {
+			tookOff++
 		}
-		if 3600-sentTime > 300 && ac.Altitude() < sentAltitude+3000 {
-			t.Errorf("%s: only climbed from %.0f to %.0f after FC", sentCallsign, sentAltitude, ac.Altitude())
+		if dep.sentToDeparture {
+			sent++
 		}
 	}
-	t.Logf("%d arrivals switched to the tower, %d landed; %d departure-seconds on the tower's frequency",
-		switched, landed, departuresOnTower)
+	if tookOff < 5 || sent < 5 {
+		t.Errorf("only %d departures took off and %d were sent to departure in an hour", tookOff, sent)
+	}
+	t.Logf("arrivals: %d switched to the tower, %d landed; departures: %d took off, %d sent to departure",
+		switched, landed, tookOff, sent)
 }

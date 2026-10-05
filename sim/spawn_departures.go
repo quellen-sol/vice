@@ -84,6 +84,10 @@ type DepartureAircraft struct {
 	// When they're ready to leave the gate
 	ReadyDepartGateTime Time
 
+	// When it reaches the runway and calls a human tower ready; zero until
+	// it is in the runway's queue.
+	ReadyCallTime Time
+
 	// HFR-only.
 	ReleaseRequested   bool
 	ReleaseDelay       time.Duration // minimum wait after release before the takeoff roll
@@ -455,7 +459,12 @@ func (s *Sim) updateDepartureQueues() {
 			depState.filterDeleted(s.Aircraft)
 			s.processGateDepartures(depState, now)
 			s.processHeldDepartures(depState, now)
-			s.launchNextDeparture(depState, airport, depRunway, now)
+			if s.hasHumanTower(airport) {
+				// The tower clears them for takeoff.
+				s.callTowerReady(depState, airport, depRunway, now)
+			} else {
+				s.launchNextDeparture(depState, airport, depRunway, now)
+			}
 		}
 	}
 }
@@ -566,7 +575,14 @@ func (s *Sim) launchNextDeparture(depState *RunwayLaunchState, airport av.ICAOAi
 
 	dep := (*queue)[idx]
 	*queue = util.DeleteSliceElement(*queue, idx)
+	s.startTakeoffRoll(depState, airport, depRunway, dep, now)
+}
 
+// startTakeoffRoll sends a departure that has been taken out of its
+// runway's queue down the runway, recording the launch for the spacing of
+// the departures that follow it.
+func (s *Sim) startTakeoffRoll(depState *RunwayLaunchState, airport av.ICAOAirportCode,
+	depRunway av.RunwayID, dep DepartureAircraft, now Time) {
 	ac := s.Aircraft[dep.ADSBCallsign]
 	ac.WaitingForLaunch = false
 	dep.LaunchTime = now

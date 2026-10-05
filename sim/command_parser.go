@@ -490,6 +490,10 @@ func (s *Sim) runOneControlCommand(tcw TCW, callsign av.ADSBCallsign, command st
 		return nil, ErrInvalidCommandSyntax
 	}
 
+	if intent, ok, err := s.runTowerCommand(tcw, callsign, command); ok {
+		return intent, err
+	}
+
 	// A###, C###, and D### all equivalently assign an altitude
 	if (command[0] == 'A' || command[0] == 'C' || command[0] == 'D') && len(command) > 1 && util.IsAllNumbers(command[1:]) {
 		alt, err := strconv.Atoi(command[1:])

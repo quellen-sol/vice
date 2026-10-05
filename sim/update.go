@@ -120,6 +120,21 @@ func (s *Sim) Update() {
 	}
 }
 
+// reassociateDroppedFlightPlan reassociates the flight plan of an aircraft
+// that went around if its track was dropped as it neared the runway.
+func (s *Sim) reassociateDroppedFlightPlan(ac *Aircraft, sfp *FlightPlan) {
+	if sfp != nil && ac.IsUnassociated() {
+		s.STARSComputer.takeFlightPlanByACID(sfp.ACID)
+		sfp.DeleteTime = Time{}
+		sfp.OwningTCW = s.tcwForPosition(sfp.TrackingController)
+		ac.AssociateFlightPlan(sfp)
+		s.eventStream.Post(Event{
+			Type: FlightPlanAssociatedEvent,
+			ACID: sfp.ACID,
+		})
+	}
+}
+
 func (s *Sim) applyWaypointActionEvent(ac *Aircraft, event av.WaypointActionEvent) bool {
 	actions := event.Actions
 
@@ -148,17 +163,7 @@ func (s *Sim) applyWaypointActionEvent(ac *Aircraft, event av.WaypointActionEven
 
 		s.enqueuePilotTransmission(ac.ADSBCallsign, TCP(tcp), PendingTransmissionGoAround)
 
-		// Reassociate flight plan if controller dropped it
-		if sfp != nil && ac.IsUnassociated() {
-			s.STARSComputer.takeFlightPlanByACID(sfp.ACID)
-			sfp.DeleteTime = Time{}
-			sfp.OwningTCW = s.tcwForPosition(sfp.TrackingController)
-			ac.AssociateFlightPlan(sfp)
-			s.eventStream.Post(Event{
-				Type: FlightPlanAssociatedEvent,
-				ACID: sfp.ACID,
-			})
-		}
+		s.reassociateDroppedFlightPlan(ac, sfp)
 		// Set up handoff from current tracker to go-around controller
 		if sfp != nil && sfp.TrackingController != "" && sfp.TrackingController != TCP(tcp) {
 			s.handoffTrack(sfp, TCP(tcp))
@@ -218,6 +223,10 @@ func (s *Sim) landAtWaypoint(ac *Aircraft, wp av.Waypoint) bool {
 	// be careful.
 	alt := wp.AltitudeRestriction()
 	if alt != nil && ac.Altitude() > alt.TargetAltitude(ac.Altitude())+200 {
+		s.goAround(ac)
+		return false
+	}
+	if s.mustGoAroundWithoutClearance(ac) {
 		s.goAround(ac)
 		return false
 	}
@@ -645,6 +654,7 @@ func (s *Sim) updateState() {
 			if s.checkSwitchToTower(ac) {
 				continue
 			}
+			s.checkLandingClearance(ac)
 
 			if passedWaypoint != nil && passedWaypoint.SequenceVFRLanding() {
 				s.sequenceVFRLanding(ac)
@@ -717,6 +727,7 @@ func (s *Sim) updateState() {
 
 		s.processFutureFrequencyChanges()
 		s.processVirtualControllerContacts()
+		s.resequenceTowerGoArounds()
 		s.cullStaleContacts()
 
 		s.processFutureOnCourse()

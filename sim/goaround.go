@@ -44,7 +44,8 @@ func (s *Sim) goAround(ac *Aircraft) {
 	runway := approach.Runway
 
 	proc := s.getGoAroundProcedureForAircraft(ac)
-	if proc.HandoffController == "" {
+	humanTower := s.towerGoAroundProcedure(ac, proc, runway)
+	if proc.HandoffController == "" && !humanTower {
 		proc.HandoffController = s.getGoAroundController(ac)
 	}
 
@@ -71,8 +72,10 @@ func (s *Sim) goAround(ac *Aircraft) {
 
 	ac.Nav.GoAroundWithProcedure(altitude, wp)
 
-	holdRunways := append([]string{runway}, proc.HoldDepartures...)
-	s.holdDeparturesForGoAround(airport, holdRunways, proc.HandoffController)
+	if !humanTower {
+		holdRunways := append([]string{runway}, proc.HoldDepartures...)
+		s.holdDeparturesForGoAround(airport, holdRunways, proc.HandoffController)
+	}
 }
 
 // getGoAroundController returns the TCP that should handle a go-around for

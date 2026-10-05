@@ -68,6 +68,7 @@ var errorStringToError = map[string]error{
 	sim.ErrIllegalScratchpad.Error():               sim.ErrIllegalScratchpad,
 	sim.ErrInvalidAbbreviatedFP.Error():            sim.ErrInvalidAbbreviatedFP,
 	sim.ErrInvalidCommandSyntax.Error():            sim.ErrInvalidCommandSyntax,
+	sim.ErrNotTowerPosition.Error():                sim.ErrNotTowerPosition,
 	sim.ErrInvalidDepartureController.Error():      sim.ErrInvalidDepartureController,
 	sim.ErrInvalidLaunchConfig.Error():             sim.ErrInvalidLaunchConfig,
 	sim.ErrInvalidRestrictionAreaIndex.Error():     sim.ErrInvalidRestrictionAreaIndex,

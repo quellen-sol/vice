@@ -84,6 +84,13 @@ type Aircraft struct {
 	GotContactTower       bool
 	AskedAboutTowerSwitch bool
 
+	// Runway clearances from a human tower controller (see tower.go).
+	ClearedToLand             bool
+	RequestedLandingClearance bool // the pilot has asked for it on short final
+	ReadyForDeparture         bool // the departure has called the tower ready
+	LinedUp                   bool // line up and wait
+	SentAroundByTower         bool
+
 	FlightPlan *FlightPlan
 
 	// ControllerFrequency is the controller position whose radio frequency

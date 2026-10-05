@@ -121,7 +121,10 @@ type CommonState struct {
 // DerivedState collects state used on the client-side that is derived from Sim state that is not
 // shared with the client.
 type DerivedState struct {
-	Tracks                  map[av.ADSBCallsign]*Track
+	Tracks map[av.ADSBCallsign]*Track
+	// SurfaceTracks are the aircraft on the ground that a human tower
+	// controller works, which aren't radar visible and so aren't in Tracks.
+	SurfaceTracks           map[av.ADSBCallsign]*Track
 	LastSTTCallsigns        map[TCW]av.ADSBCallsign
 	UnassociatedFlightPlans []*FlightPlan // Unassociated ones, including unsupported DBs
 	ReleaseDepartures       []ReleaseDeparture
@@ -200,62 +203,76 @@ func makeDerivedState(s *Sim) DerivedState {
 		if !s.isRadarVisible(ac) {
 			continue
 		}
-
-		var approach string
-		if ac.Nav.Approach.Assigned != nil {
-			approach = ac.Nav.Approach.Assigned.FullName
-		}
-
-		rt := Track{
-			RadarTrack:                ac.GetRadarTrack(s.State.SimTime),
-			FlightPlan:                ac.FlightPlan,
-			ControllerFrequency:       ac.ControllerFrequency,
-			DepartureAirport:          ac.DepartureAirport,
-			DepartureAirportElevation: ac.DepartureAirportElevation(),
-			DepartureAirportLocation:  ac.DepartureAirportLocation(),
-			ArrivalAirport:            ac.ArrivalAirport,
-			ArrivalAirportElevation:   ac.ArrivalAirportElevation(),
-			ArrivalAirportLocation:    ac.ArrivalAirportLocation(),
-			OnExtendedCenterline:      ac.OnExtendedCenterline(0.2),
-			OnApproach:                ac.OnApproach(false), /* don't check altitude */
-			ClearedForApproach:        ac.Nav.Approach.Cleared,
-			Approach:                  approach,
-			Fixes:                     ac.GetSTTFixes(db.DB.IsARTCC(s.State.Facility)),
-			ReportingPoints:           ac.ReportingPointsAhead(),
-			RouteFixes:                ac.GetRouteFixes(),
-			ExpectedDirectFix:         ac.Nav.ExpectedDirectFix,
-			SID:                       ac.SID,
-			STAR:                      ac.STAR,
-			MVAsApply:                 ac.MVAsApply(),
-			HoldForRelease:            ac.HoldForRelease,
-			MissingFlightPlan:         ac.MissingFlightPlan,
-			ATPAVolume:                ac.ATPAVolume(),
-			IsTentative:               s.State.SimTime.Sub(ac.FirstSeen) < 5*time.Second,
-			RequestedFlightFollowing:  ac.RequestedFlightFollowing,
-			VirtuallyControlled: ac.FlightPlan != nil &&
-				s.isVirtualController(ac.FlightPlan.TrackingController),
-		}
-
-		if perf, ok := db.DB.AircraftPerformance[ac.AircraftType]; ok {
-			rt.CWTCategory = perf.Category.CWT
-		}
-
-		// Assigned heading/speed from nav, for STT intent inference. A speed
-		// restriction may be in knots or mach; carry each in its own field
-		// and its own units (mach in hundredths, matching the STT M command).
-		if ac.Nav.Heading.Assigned != nil {
-			rt.AssignedHeading = int(*ac.Nav.Heading.Assigned)
-		}
-		rt.AssignedSpeed, rt.AssignedMach = assignedSpeedForSTT(ac.Nav.Speed.Assigned)
-
-		for _, wp := range ac.Nav.Waypoints {
-			rt.Route = append(rt.Route, wp.Location)
-		}
-
-		ds.Tracks[callsign] = &rt
+		ds.Tracks[callsign] = s.makeTrack(ac)
 	}
+	ds.SurfaceTracks = s.surfaceTracks()
 
 	// Make up fake tracks for unsupported datablocks
+	ds.addUnsupportedDatablockTracks(s)
+
+	return ds
+}
+
+// makeTrack returns the track a client is given for the aircraft.
+func (s *Sim) makeTrack(ac *Aircraft) *Track {
+	var approach string
+	if ac.Nav.Approach.Assigned != nil {
+		approach = ac.Nav.Approach.Assigned.FullName
+	}
+
+	rt := Track{
+		RadarTrack:                ac.GetRadarTrack(s.State.SimTime),
+		FlightPlan:                ac.FlightPlan,
+		ControllerFrequency:       ac.ControllerFrequency,
+		DepartureAirport:          ac.DepartureAirport,
+		DepartureAirportElevation: ac.DepartureAirportElevation(),
+		DepartureAirportLocation:  ac.DepartureAirportLocation(),
+		ArrivalAirport:            ac.ArrivalAirport,
+		ArrivalAirportElevation:   ac.ArrivalAirportElevation(),
+		ArrivalAirportLocation:    ac.ArrivalAirportLocation(),
+		OnExtendedCenterline:      ac.OnExtendedCenterline(0.2),
+		OnApproach:                ac.OnApproach(false), /* don't check altitude */
+		ClearedForApproach:        ac.Nav.Approach.Cleared,
+		Approach:                  approach,
+		Fixes:                     ac.GetSTTFixes(db.DB.IsARTCC(s.State.Facility)),
+		ReportingPoints:           ac.ReportingPointsAhead(),
+		RouteFixes:                ac.GetRouteFixes(),
+		ExpectedDirectFix:         ac.Nav.ExpectedDirectFix,
+		SID:                       ac.SID,
+		STAR:                      ac.STAR,
+		MVAsApply:                 ac.MVAsApply(),
+		HoldForRelease:            ac.HoldForRelease,
+		MissingFlightPlan:         ac.MissingFlightPlan,
+		ATPAVolume:                ac.ATPAVolume(),
+		IsTentative:               s.State.SimTime.Sub(ac.FirstSeen) < 5*time.Second,
+		RequestedFlightFollowing:  ac.RequestedFlightFollowing,
+		VirtuallyControlled: ac.FlightPlan != nil &&
+			s.isVirtualController(ac.FlightPlan.TrackingController),
+	}
+
+	if perf, ok := db.DB.AircraftPerformance[ac.AircraftType]; ok {
+		rt.CWTCategory = perf.Category.CWT
+	}
+
+	// Assigned heading/speed from nav, for STT intent inference. A speed
+	// restriction may be in knots or mach; carry each in its own field
+	// and its own units (mach in hundredths, matching the STT M command).
+	if ac.Nav.Heading.Assigned != nil {
+		rt.AssignedHeading = int(*ac.Nav.Heading.Assigned)
+	}
+	rt.AssignedSpeed, rt.AssignedMach = assignedSpeedForSTT(ac.Nav.Speed.Assigned)
+
+	for _, wp := range ac.Nav.Waypoints {
+		rt.Route = append(rt.Route, wp.Location)
+	}
+	s.setTowerTrackState(ac, &rt)
+
+	return &rt
+}
+
+// addUnsupportedDatablockTracks makes up tracks for the unsupported
+// datablocks among the flight plans the STARS computer holds.
+func (ds *DerivedState) addUnsupportedDatablockTracks(s *Sim) {
 	for i, fp := range s.STARSComputer.FlightPlans {
 		if fp.Location.IsZero() {
 			continue
@@ -269,8 +286,6 @@ func makeDerivedState(s *Sim) DerivedState {
 			FlightPlan: s.STARSComputer.FlightPlans[i],
 		}
 	}
-
-	return ds
 }
 
 func newCommonState(config NewSimConfiguration, startTime time.Time, model *wx.Model,
@@ -642,6 +657,12 @@ type Track struct {
 	CWTCategory               string // True CWT from aircraft performance DB, not from NAS flight plan
 	RequestedFlightFollowing  bool   // VFR aircraft that has requested flight following
 	VirtuallyControlled       bool   // tracked by a virtual controller rather than a human one
+
+	// Runway clearance state at airports with a human tower (see tower.go).
+	TowerRunway       string // the runway it is departing from or landing on
+	ReadyForDeparture bool
+	LinedUp           bool
+	ClearedToLand     bool
 }
 
 func (t *Track) IsAssociated() bool {

@@ -259,5 +259,8 @@ func (ctx *Context) TracksFromACIDSuffix(suffix string) []*sim.Track {
 			return false
 		}
 	}
-	return slices.Collect(util.FilterSeq(maps.Values(ctx.Client.State.Tracks), match))
+	// A tower controller's commands may also be for aircraft on the ground.
+	tracks := util.FilterSeq(maps.Values(ctx.Client.State.Tracks), match)
+	surface := util.FilterSeq(maps.Values(ctx.Client.State.SurfaceTracks), match)
+	return slices.Concat(slices.Collect(tracks), slices.Collect(surface))
 }

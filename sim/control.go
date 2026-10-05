@@ -163,6 +163,9 @@ const (
 	DeleteByController
 	DeletePrespawn   // culled while the sim prespawned its traffic
 	DeleteRateChange // a queued departure dropped when its runway's rate was lowered
+	// A go-around a human tower sent to a virtual approach controller,
+	// which takes it to resequence for another approach.
+	DeleteResequenced
 )
 
 func (r DeleteReason) String() string {
@@ -179,6 +182,8 @@ func (r DeleteReason) String() string {
 		return "culled in prespawn"
 	case DeleteRateChange:
 		return "dropped by rate change"
+	case DeleteResequenced:
+		return "resequenced after a go-around"
 	default:
 		return "(unhandled delete reason)"
 	}

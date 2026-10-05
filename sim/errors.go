@@ -28,6 +28,7 @@ var (
 	ErrIllegalPosition                 = errors.New("Illegal position")
 	ErrIllegalScratchpad               = errors.New("Illegal scratchpad")
 	ErrInvalidAbbreviatedFP            = errors.New("Invalid abbreviated flight plan")
+	ErrNotTowerPosition                = errors.New("Only the tower can issue runway clearances")
 	ErrInvalidDepartureController      = errors.New("Invalid departure controller")
 	ErrInvalidLaunchConfig             = errors.New("Invalid launch config")
 	ErrInvalidRestrictionAreaIndex     = errors.New("Invalid restriction area index")

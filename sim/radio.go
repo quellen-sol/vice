@@ -127,6 +127,8 @@ const (
 	PendingTransmissionRequestTowerSwitch                                              // Pilot is close in on the approach without being sent to tower
 	PendingTransmissionReportingPointInSight                                           // Delayed reporting point "in sight" after "looking"
 	PendingTransmissionSpontaneousReportingPointInSight                                // Unprompted reporting point "in sight"
+	PendingTransmissionReadyForDeparture                                               // Departure at the runway calling a human tower
+	PendingTransmissionRequestLandingClearance                                         // On short final without a landing clearance
 )
 
 // FutureFrequencyChange represents a pilot switching to a new frequency.
@@ -252,6 +254,14 @@ func (s *Sim) contactApplies(pc PendingContact) bool {
 
 	case PendingTransmissionSpontaneousReportingPointInSight:
 		return ac.SightedReportingPoint != nil && !ac.Nav.Approach.EffectivelyCleared()
+
+	case PendingTransmissionReadyForDeparture:
+		// Moot once the tower has lined it up or cleared it for takeoff.
+		return ac.WaitingForLaunch && ac.ReadyForDeparture && !ac.LinedUp
+
+	case PendingTransmissionRequestLandingClearance:
+		// Moot once cleared to land or no longer on the approach.
+		return !ac.ClearedToLand && ac.Nav.Approach.Cleared
 
 	default:
 		// A type without a rule above is never said.
@@ -693,7 +703,11 @@ func (s *Sim) contactTransmission(pc PendingContact, ac *Aircraft, r *rand.Rand)
 		rt = ac.Nav.DepartureMessage(sid, pc.ReportDepartureHeading)
 
 	case PendingTransmissionArrival:
-		rt = ac.ContactMessage()
+		if checkIn, ok := s.towerCheckIn(ac, pc.TCP); ok {
+			rt = checkIn
+		} else {
+			rt = ac.ContactMessage()
+		}
 		rt.Type = speech.RadioTransmissionContact
 		if pc.ATIS != "" {
 			rt.Add("[we have information {ch}|information {ch}|we have {ch}]", pc.ATIS)
@@ -742,6 +756,21 @@ func (s *Sim) contactTransmission(pc PendingContact, ac *Aircraft, r *rand.Rand)
 
 	case PendingTransmissionRequestApproachClearance:
 		rt = speech.MakeContactTransmission("[are we cleared for the approach|looking for the approach|we're going to need the approach here shortly]")
+		rt.Type = speech.RadioTransmissionUnexpected
+
+	case PendingTransmissionReadyForDeparture:
+		runway, _ := s.queuedDepartureRunway(ac)
+		rt = speech.MakeContactTransmission("[holding short runway {rwy}, ready for departure|ready for departure runway {rwy}|holding short {rwy}, ready]",
+			runway.Base())
+		rt.Type = speech.RadioTransmissionContact
+
+	case PendingTransmissionRequestLandingClearance:
+		var runway string
+		if appr := ac.Nav.Approach.Assigned; appr != nil {
+			runway = appr.Runway
+		}
+		rt = speech.MakeContactTransmission("[short final runway {rwy}, are we cleared to land?|short final {rwy}, confirm cleared to land|short final, request landing clearance runway {rwy}]",
+			runway)
 		rt.Type = speech.RadioTransmissionUnexpected
 
 	case PendingTransmissionRequestVectors:
