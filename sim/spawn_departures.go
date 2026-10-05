@@ -280,7 +280,10 @@ func (s *Sim) initializeIFRDeparture(ac *Aircraft, ap *av.Airport, departureAirp
 	// Create a flight strip for departures
 	printStrips := ap.PrintDepartureStrips == nil || *ap.PrintDepartureStrips
 	if printStrips && shouldCreateFlightStrip(&nasFp) {
-		if s.isVirtualController(nasFp.TrackingController) {
+		if tower, ok := s.humanTowerPosition(departureAirport, string(runway)); ok {
+			// The tower works the departure first.
+			s.initFlightStrip(&nasFp, tower)
+		} else if s.isVirtualController(nasFp.TrackingController) {
 			// Virtual controller: strip goes to the handoff target
 			if !s.isVirtualController(nasFp.InboundHandoffController) {
 				s.initFlightStrip(&nasFp, nasFp.InboundHandoffController)
@@ -344,6 +347,11 @@ func exitRoutesHaveVariedSIDs(exitRoutes map[av.ExitID]*av.ExitRoute) bool {
 //  2. Human controller -> set contact altitude, use human controller position
 func (s *Sim) assignDepartureController(ac *Aircraft, nasFp *FlightPlan,
 	ap *av.Airport, exitRoute *av.ExitRoute, departureAirport av.ICAOAirportCode, runway string) {
+
+	if tower, ok := s.humanTowerPosition(departureAirport, string(runway)); ok {
+		s.assignTowerDepartureController(ac, nasFp, ap, exitRoute, departureAirport, runway, tower)
+		return
+	}
 
 	// Departures that start with a virtual controller are already on its
 	// frequency, so they never check in with a departure controller; -1 keeps

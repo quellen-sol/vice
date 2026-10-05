@@ -642,6 +642,10 @@ func (s *Sim) updateState() {
 				continue
 			}
 
+			if s.checkSwitchToTower(ac) {
+				continue
+			}
+
 			if passedWaypoint != nil && passedWaypoint.SequenceVFRLanding() {
 				s.sequenceVFRLanding(ac)
 			}

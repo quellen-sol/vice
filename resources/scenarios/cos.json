@@ -328,6 +328,538 @@
     }
   },
   "inbound_flows": {
+    "TWR.35L": {
+      "arrivals": [
+        {
+          "airports": [
+            "KCOS"
+          ],
+          "airlines": {
+            "KCOS": [
+              {
+                "airport": "KORD",
+                "types": [
+                  "E75L",
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KMCI",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KOMA",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KATL",
+                "types": [
+                  "A320"
+                ],
+                "icao": "DAL"
+              },
+              {
+                "airport": "KPIE",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "B738"
+                ],
+                "icao": "AAL"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "E170"
+                ],
+                "icao": "ENY"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "ASH"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAT",
+                "icao": "JIA"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "EDV"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KABQ",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KLAS",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSLC",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAN",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSNA",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              }
+            ]
+          },
+          "cruise_altitude": 34000,
+          "initial_altitude": 8000,
+          "initial_controller": "1A",
+          "initial_speed": 190,
+          "expect_approach": "I5L",
+          "description": "Final for I5L (tower scenarios)",
+          "waypoints": "MIDAY172004/a8000/s190 MIDAY/a8000/clearapp"
+        }
+      ]
+    },
+    "TWR.35R": {
+      "arrivals": [
+        {
+          "airports": [
+            "KCOS"
+          ],
+          "airlines": {
+            "KCOS": [
+              {
+                "airport": "KORD",
+                "types": [
+                  "E75L",
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KMCI",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KOMA",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KATL",
+                "types": [
+                  "A320"
+                ],
+                "icao": "DAL"
+              },
+              {
+                "airport": "KPIE",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "B738"
+                ],
+                "icao": "AAL"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "E170"
+                ],
+                "icao": "ENY"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "ASH"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAT",
+                "icao": "JIA"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "EDV"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KABQ",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KLAS",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSLC",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAN",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSNA",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              }
+            ]
+          },
+          "cruise_altitude": 34000,
+          "initial_altitude": 8100,
+          "initial_controller": "1A",
+          "initial_speed": 190,
+          "expect_approach": "I5R",
+          "description": "Final for I5R (tower scenarios)",
+          "waypoints": "FALUR172004/a8100/s190 FALUR/a8100/clearapp"
+        }
+      ]
+    },
+    "TWR.17L": {
+      "arrivals": [
+        {
+          "airports": [
+            "KCOS"
+          ],
+          "airlines": {
+            "KCOS": [
+              {
+                "airport": "KORD",
+                "types": [
+                  "E75L",
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KMCI",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KOMA",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KATL",
+                "types": [
+                  "A320"
+                ],
+                "icao": "DAL"
+              },
+              {
+                "airport": "KPIE",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "B738"
+                ],
+                "icao": "AAL"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "E170"
+                ],
+                "icao": "ENY"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "ASH"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAT",
+                "icao": "JIA"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "EDV"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KABQ",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KLAS",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSLC",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAN",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSNA",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              }
+            ]
+          },
+          "cruise_altitude": 34000,
+          "initial_altitude": 10000,
+          "initial_controller": "1A",
+          "initial_speed": 190,
+          "expect_approach": "I7L",
+          "description": "Final for I7L (tower scenarios)",
+          "waypoints": "MOGAL352004/a10000/s190 MOGAL/a10000/clearapp"
+        }
+      ]
+    },
+    "TWR.17R": {
+      "arrivals": [
+        {
+          "airports": [
+            "KCOS"
+          ],
+          "airlines": {
+            "KCOS": [
+              {
+                "airport": "KORD",
+                "types": [
+                  "E75L",
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KMCI",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KOMA",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KATL",
+                "types": [
+                  "A320"
+                ],
+                "icao": "DAL"
+              },
+              {
+                "airport": "KPIE",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "B738"
+                ],
+                "icao": "AAL"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "CRJ7"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KDFW",
+                "types": [
+                  "E170"
+                ],
+                "icao": "ENY"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "ASH"
+              },
+              {
+                "airport": "KIAH",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAT",
+                "icao": "JIA"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "EDV"
+              },
+              {
+                "airport": "KPHX",
+                "icao": "SWA"
+              },
+              {
+                "airport": "KABQ",
+                "fleet": "GAjet",
+                "icao": "N"
+              },
+              {
+                "airport": "KLAS",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSLC",
+                "types": [
+                  "E75L"
+                ],
+                "icao": "SKW"
+              },
+              {
+                "airport": "KSAN",
+                "types": [
+                  "B738",
+                  "B38M"
+                ],
+                "icao": "SWA"
+              },
+              {
+                "airport": "KSNA",
+                "types": [
+                  "A320"
+                ],
+                "icao": "AAY"
+              }
+            ]
+          },
+          "cruise_altitude": 34000,
+          "initial_altitude": 9500,
+          "initial_controller": "1A",
+          "initial_speed": 190,
+          "expect_approach": "RY7R",
+          "description": "Final for RY7R (tower scenarios)",
+          "waypoints": "FEBLA352004/a9500/s190 FEBLA/a9500/clearapp"
+        }
+      ]
+    },
     "OZZZY5": {
       "arrivals": [
         {
@@ -539,6 +1071,100 @@
   "default_scenario": "North VMC",
   "name": "KCOS",
   "scenarios": {
+    "KCOS Tower North": {
+      "description": "Work KCOS local control; Springs Approach (1A) is automated.",
+      "configuration": "STD",
+      "default_consolidation": {
+        "1W": [
+          "1E"
+        ]
+      },
+      "center": "KCOS",
+      "range": 15,
+      "arrival_runways": [
+        {
+          "airport": "KCOS",
+          "runway": "35L"
+        },
+        {
+          "airport": "KCOS",
+          "runway": "35R"
+        }
+      ],
+      "inbound_rates": {
+        "TWR.35L": {
+          "KCOS": 10
+        },
+        "TWR.35R": {
+          "KCOS": 6
+        }
+      },
+      "departure_runways": [
+        {
+          "airport": "KCOS",
+          "rate": 8,
+          "runway": "35L"
+        },
+        {
+          "airport": "KCOS",
+          "rate": 8,
+          "runway": "35R"
+        }
+      ],
+      "default_maps": [
+        "COS NORTH"
+      ],
+      "wind": {
+        "direction": "320-20"
+      }
+    },
+    "KCOS Tower South": {
+      "description": "Work KCOS local control; Springs Approach (1A) is automated.",
+      "configuration": "STD",
+      "default_consolidation": {
+        "1W": [
+          "1E"
+        ]
+      },
+      "center": "KCOS",
+      "range": 15,
+      "arrival_runways": [
+        {
+          "airport": "KCOS",
+          "runway": "17R"
+        },
+        {
+          "airport": "KCOS",
+          "runway": "17L"
+        }
+      ],
+      "inbound_rates": {
+        "TWR.17R": {
+          "KCOS": 10
+        },
+        "TWR.17L": {
+          "KCOS": 6
+        }
+      },
+      "departure_runways": [
+        {
+          "airport": "KCOS",
+          "rate": 8,
+          "runway": "17R"
+        },
+        {
+          "airport": "KCOS",
+          "rate": 8,
+          "runway": "17L"
+        }
+      ],
+      "default_maps": [
+        "COS SOUTH"
+      ],
+      "wind": {
+        "direction": "140-200"
+      }
+    },
     "North VMC": {
       "arrival_runways": [
         {

@@ -13,12 +13,18 @@
     "1W": {
       "callsign": "COS_W_TWR",
       "frequency": 119900,
-      "radio_name": "Springs tower"
+      "radio_name": "Springs tower",
+      "role": "local",
+      "airport": "KCOS",
+      "runways": ["17R", "35L"]
     },
     "1E": {
       "callsign": "COS_E_TWR",
       "frequency": 135150,
-      "radio_name": "Springs tower"
+      "radio_name": "Springs tower",
+      "role": "local",
+      "airport": "KCOS",
+      "runways": ["17L", "35R"]
     }
   },
   "facility_adaptations": {

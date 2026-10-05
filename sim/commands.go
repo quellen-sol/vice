@@ -333,7 +333,7 @@ func (s *Sim) ContactTower(tcw TCW, callsign av.ADSBCallsign, freq av.Frequency)
 	return s.dispatchControlledAircraftCommand(tcw, callsign,
 		func(tcw TCW, ac *Aircraft) speech.CommandIntent {
 			result, ok := ac.ContactTower(s.lg, freq)
-			if ok {
+			if ok && !s.sendToHumanTower(tcw, ac) {
 				s.setControllerFrequency(ac, "_TOWER")
 			}
 			return result

@@ -20,10 +20,48 @@ type Controller struct {
 	ERAMFacility       bool      `json:"-"`              // Set at runtime from facility type; true for ARTCC controllers
 	Facility           string    `json:"facility"`       // So we can get the STARS facility from a controller
 	Area               string    `json:"area,omitempty"` // For TRACON: auto-derived from first digit of Position. For ERAM: must be manually specified.
+
+	// Role is set for tower cab positions; radar (TRACON and ARTCC)
+	// positions leave it empty.
+	Role ControllerRole `json:"role,omitempty"`
+	// Airport is the airport a tower cab position works.
+	Airport ICAOAirportCode `json:"airport,omitempty"`
+	// Runways optionally lists the runways (by end, e.g. "17R" and "35L")
+	// a local control position works when an airport's runways are split
+	// between several of them.
+	Runways []string `json:"runways,omitempty"`
 }
+
+// WorksRunway reports whether a local control position lists the given
+// runway end among those it works.
+func (c Controller) WorksRunway(runway RunwayID) bool {
+	for _, r := range c.Runways {
+		if RunwayID(r).SameRunway(runway) {
+			return true
+		}
+	}
+	return false
+}
+
+// ControllerRole identifies the tower cab positions.
+type ControllerRole string
+
+const (
+	// RoleLocal is local control ("tower"): the runways and the airspace
+	// around the airport.
+	RoleLocal ControllerRole = "local"
+	// RoleGround is ground control: the taxiways.
+	RoleGround ControllerRole = "ground"
+)
 
 func (c Controller) IsExternal() bool {
 	return c.ERAMFacility || c.FacilityIdentifier != ""
+}
+
+// IsTowerCab reports whether the position is in an airport's tower cab
+// rather than a radar position.
+func (c Controller) IsTowerCab() bool {
+	return c.Role != ""
 }
 
 func (c Controller) PositionId() ControlPosition {

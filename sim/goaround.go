@@ -183,8 +183,10 @@ func (s *Sim) checkFinalApproachSpacing() {
 	aircraftByRunway := make(map[string][]*Aircraft)
 	for ac := range util.SortedMapValues(s.Aircraft) {
 		// Only tower sends aircraft around; don't include ones that have already been sent around
-		// since presumably we'll have vertical separation soon if not already.
-		if ac.Nav.Approach.Assigned != nil && ac.GotContactTower && !ac.SentAroundForSpacing {
+		// since presumably we'll have vertical separation soon if not already. A human tower
+		// controller decides for themself.
+		if ac.Nav.Approach.Assigned != nil && ac.GotContactTower && !ac.SentAroundForSpacing &&
+			!s.hasHumanTower(ac.ArrivalAirport) {
 			key := string(ac.ArrivalAirport) + "/" + ac.Nav.Approach.Assigned.Runway
 			aircraftByRunway[key] = append(aircraftByRunway[key], ac)
 		}

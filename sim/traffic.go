@@ -261,7 +261,7 @@ func MarkBackgroundTraffic(airports map[av.ICAOAirportCode]*av.Airport, flows ma
 		}
 		for runway, categoryRates := range runwayRates {
 			for category := range categoryRates {
-				if bc.departureIsBackground(ap, runway, category) {
+				if !bc.hasHumanTower(airport) && bc.departureIsBackground(ap, runway, category) {
 					markDepartureBackground(lc, airport, runway, category)
 				}
 			}
@@ -274,7 +274,8 @@ func MarkBackgroundTraffic(airports map[av.ICAOAirportCode]*av.Airport, flows ma
 			continue
 		}
 		for airport := range airportRates {
-			if bc.inboundIsBackground(inboundFlow, airport, cc.InboundAssignments[flow]) {
+			if !bc.hasHumanTower(av.ICAOAirportCode(airport)) &&
+				bc.inboundIsBackground(inboundFlow, airport, cc.InboundAssignments[flow]) {
 				markInboundBackground(lc, flow, airport)
 			}
 		}
@@ -324,6 +325,18 @@ func (bc backgroundClassifier) isVirtual(pos av.ControlPosition) bool {
 		return false
 	}
 	return !bc.cc.DefaultConsolidation.IsHumanPosition(pos)
+}
+
+// hasHumanTower reports whether a human works local control at the airport,
+// in which case its arrivals and departures all talk to them. It mirrors
+// Sim.humanTowerPosition.
+func (bc backgroundClassifier) hasHumanTower(airport av.ICAOAirportCode) bool {
+	for tcp, ctrl := range bc.controlPositions {
+		if ctrl.Role == av.RoleLocal && ctrl.Airport == airport && bc.isHuman(tcp) {
+			return true
+		}
+	}
+	return false
 }
 
 func (bc backgroundClassifier) reachesHuman(wps av.WaypointArray, atHandoff av.ControlPosition) bool {

@@ -118,6 +118,30 @@ func (fc *FacilityConfig) Finalize(configPath string, e *util.ErrorLogger) {
 			e.ErrorString(`"area" is redundant since it matches the first digit of position`)
 		}
 
+		switch ctrl.Role {
+		case "":
+			if ctrl.Airport != "" {
+				e.ErrorString(`"airport" is only used for tower cab positions with a "role"`)
+			}
+		case av.RoleLocal, av.RoleGround:
+			if ctrl.ERAMFacility {
+				e.ErrorString(`tower cab "role" not allowed in an ARTCC facility`)
+			}
+			if ctrl.Airport == "" {
+				e.ErrorString(`tower cab positions must specify the "airport" they work`)
+			} else if _, ok := db.DB.Airports[ctrl.Airport]; !ok {
+				e.ErrorString("%s: unknown airport", ctrl.Airport)
+			} else {
+				for _, rwy := range ctrl.Runways {
+					if !av.AirportHasRunway(db.Lookups{}, ctrl.Airport, av.RunwayID(rwy)) {
+						e.ErrorString(`"runways": %s: no such runway at %s`, rwy, ctrl.Airport)
+					}
+				}
+			}
+		default:
+			e.ErrorString(`%q: "role" must be %q or %q`, ctrl.Role, av.RoleLocal, av.RoleGround)
+		}
+
 		e.Pop()
 	}
 
