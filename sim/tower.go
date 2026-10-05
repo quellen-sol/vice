@@ -430,15 +430,18 @@ func (s *Sim) resequenceTowerGoArounds() {
 	}
 }
 
-// surfaceTracks returns tracks for the aircraft on the ground that a human
-// tower works: the departures that have called it ready. They aren't radar
-// visible, so they aren't in the derived state's Tracks, but the tower
-// issues them clearances.
+// surfaceTracks returns tracks for the aircraft at airports with a human
+// tower that are below radar coverage: departures that have called the
+// tower ready, those on their takeoff roll and initial climb, and arrivals
+// on short final. They aren't in the derived state's Tracks, but the tower
+// sees them on ASDE-X and issues them clearances. (Departures that are still
+// at the gate aren't included, since the sim doesn't yet model where they
+// are.)
 func (s *Sim) surfaceTracks() map[av.ADSBCallsign]*Track {
 	var tracks map[av.ADSBCallsign]*Track
 	for callsign, ac := range util.SortedMap(s.Aircraft) {
-		if s.isRadarVisible(ac) || !ac.IsDeparture() || !ac.WaitingForLaunch ||
-			!(ac.ReadyForDeparture || ac.LinedUp) || !s.hasHumanTower(ac.DepartureAirport) {
+		if s.isRadarVisible(ac) || !s.hasHumanTower(towerAirport(ac)) ||
+			(ac.WaitingForLaunch && !ac.ReadyForDeparture && !ac.LinedUp) {
 			continue
 		}
 		if tracks == nil {

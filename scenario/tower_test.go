@@ -164,6 +164,22 @@ func runKCOSTowerScenario(t *testing.T, voice bool) {
 	for step := range steps {
 		s.Step(time.Second)
 
+		// Every aircraft talking to the tower is on its display, in the air
+		// or, below radar coverage, on the ground.
+		if step%5 == 0 {
+			state := s.GetUserState()
+			for ac := range util.SortedMapValues(s.Aircraft) {
+				if ac.ControllerFrequency != sim.ControlPosition(tower) ||
+					(ac.WaitingForLaunch && !ac.ReadyForDeparture) {
+					continue
+				}
+				if state.Tracks[ac.ADSBCallsign] == nil && state.SurfaceTracks[ac.ADSBCallsign] == nil {
+					t.Errorf("%s: talking to the tower but neither a track nor a surface track (alt %.0f)",
+						ac.ADSBCallsign, ac.Altitude())
+				}
+			}
+		}
+
 		for ac := range util.SortedMapValues(s.Aircraft) {
 			callsign := ac.ADSBCallsign
 			switch {

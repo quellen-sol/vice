@@ -526,6 +526,7 @@ func loadSavedSim(mgr *client.ConnectionManager, config *Config,
 	isSTARSSim := db.DB.IsTRACON(c.State.Facility) || db.DB.IsATCT(c.State.Facility)
 	activeRadarScope := config.ActiveRadarScope(isSTARSSim)
 	activeRadarScope.LoadedSim(c, plat, lg)
+	config.ASDEXScope.LoadedSim(c, plat, lg)
 	uiResetControlClient(c, config, plat, lg)
 
 	// Apply waypoint commands if specified via command line
@@ -687,6 +688,7 @@ func runGUI(config *Config, configErr error, lg *log.Logger) error {
 
 					// Reset each window for the new sim
 					activeRadarScope.ResetSim(c, plat, lg)
+					config.ASDEXScope.ResetSim(c, plat, lg)
 					config.MessagesWindow.ResetSim(c, plat, lg)
 					config.FlightStripWindow.ResetSim(c, plat, lg)
 
@@ -855,7 +857,8 @@ func runGUI(config *Config, configErr error, lg *log.Logger) error {
 		imgui.NewFrame()
 
 		// Generate and render vice draw lists
-		stats.drawWindows = scope.DrawScope(activeRadarScope, plat, render, controlClient,
+		drawnScope := config.DrawnScope(activeRadarScope, controlClient)
+		stats.drawWindows = scope.DrawScope(drawnScope, plat, render, controlClient,
 			ui.menuBarHeight, frameEvents, lg)
 
 		// Execute fuzz commands if in fuzz testing mode
@@ -865,7 +868,7 @@ func runGUI(config *Config, configErr error, lg *log.Logger) error {
 		}
 
 		// Draw the user interface
-		stats.drawUI = uiDraw(mgr, config, plat, render, controlClient, activeRadarScope, frameEvents, lg)
+		stats.drawUI = uiDraw(mgr, config, plat, render, controlClient, drawnScope, frameEvents, lg)
 
 		// Wait for vsync
 		plat.PostRender()

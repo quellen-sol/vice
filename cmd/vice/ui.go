@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mmp/vice/asdex"
 	"github.com/mmp/vice/client"
 	"github.com/mmp/vice/gui"
 	"github.com/mmp/vice/log"
@@ -266,6 +267,17 @@ func uiDraw(mgr *client.ConnectionManager, config *Config, p platform.Platform, 
 			}
 			if imgui.IsItemHovered() {
 				imgui.SetTooltip("Toggle flight strips window")
+			}
+
+			// A tower controller can switch between ASDE-X and STARS.
+			if asdex.UserTowerAirport(controlClient) != "" {
+				if imgui.Button(util.Select(config.TowerShowsSTARS, "ASDE-X", "STARS")) {
+					config.TowerShowsSTARS = !config.TowerShowsSTARS
+				}
+				if imgui.IsItemHovered() {
+					imgui.SetTooltip(util.Select(config.TowerShowsSTARS, "Switch to the ASDE-X display",
+						"Switch to the STARS display"))
+				}
 			}
 		}
 

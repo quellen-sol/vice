@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mmp/vice/asdex"
 	"github.com/mmp/vice/client"
 	"github.com/mmp/vice/eram"
 	"github.com/mmp/vice/log"
@@ -54,12 +55,16 @@ type ConfigNoSim struct {
 	// read.
 	STARSScope        *stars.Scope       `json:"STARSPane"`
 	ERAMScope         *eram.Scope        `json:"ERAMPane"`
+	ASDEXScope        *asdex.Scope       `json:"ASDEXPane"`
 	MessagesWindow    *MessagesWindow    `json:"MessagesPane"`
 	FlightStripWindow *FlightStripWindow `json:"FlightStripPane"`
 
 	// Whether the floating windows are visible
 	ShowMessages     bool
 	ShowFlightStrips bool
+	// TowerShowsSTARS selects the STARS display rather than ASDE-X when the
+	// user works a tower.
+	TowerShowsSTARS bool
 
 	AskedDiscordOptIn      bool
 	InhibitDiscordActivity util.AtomicBool
@@ -224,6 +229,16 @@ func (c *Config) clearFacilityEngineeringFiles() {
 	c.FacilityConfigFiles = nil
 }
 
+// DrawnScope returns the scope to draw: the ASDE-X display if the user
+// works a tower (unless they've switched to STARS), and otherwise the
+// sim's radar scope.
+func (c *Config) DrawnScope(radarScope scope.Scope, cc *client.ControlClient) scope.Scope {
+	if cc != nil && !c.TowerShowsSTARS && asdex.UserTowerAirport(cc) != "" {
+		return c.ASDEXScope
+	}
+	return radarScope
+}
+
 // ActiveRadarScope returns the STARS or ERAM scope based on the sim type.
 func (c *Config) ActiveRadarScope(isSTARSSim bool) scope.Scope {
 	if isSTARSSim {
@@ -244,6 +259,7 @@ func getDefaultConfig() *Config {
 			UserPTTKey:            imgui.KeySemicolon,
 			STARSScope:            stars.NewScope(),
 			ERAMScope:             eram.NewScope(),
+			ASDEXScope:            asdex.NewScope(),
 			MessagesWindow:        NewMessagesWindow(),
 			FlightStripWindow:     NewFlightStripWindow(),
 			ShowMessages:          true,
@@ -288,6 +304,9 @@ func LoadOrMakeDefaultConfig(lg *log.Logger) (config *Config, configErr error) {
 		}
 		if config.ERAMScope == nil {
 			config.ERAMScope = eram.NewScope()
+		}
+		if config.ASDEXScope == nil {
+			config.ASDEXScope = asdex.NewScope()
 		}
 		if config.MessagesWindow == nil {
 			config.MessagesWindow = NewMessagesWindow()
@@ -335,6 +354,7 @@ func (c *Config) Activate(r renderer.Renderer, p platform.Platform, lg *log.Logg
 	// Activate all scopes and windows
 	c.STARSScope.Activate(r, p, lg)
 	c.ERAMScope.Activate(r, p, lg)
+	c.ASDEXScope.Activate(r, p, lg)
 	c.MessagesWindow.Activate(r, p, lg)
 	c.FlightStripWindow.Activate(r, p, lg)
 }
