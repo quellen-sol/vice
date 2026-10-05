@@ -78,6 +78,28 @@ func TestTowerCommands(t *testing.T) {
 
 // TestTowerCommandsNeedTower checks that the runway clearances aren't heard
 // from a controller who doesn't work the aircraft's tower.
+// TestTowerCommandsRunwayNumber checks that the runway number in a
+// clearance isn't taken for part of another aircraft's flight number.
+func TestTowerCommandsRunwayNumber(t *testing.T) {
+	aircraft := map[string]Aircraft{
+		"Blue Streak 33 zero three": {Callsign: "JIA3303", State: "departure", TowerControl: true, TowerRunway: "35L"},
+		"Jet Card 33 35":            {Callsign: "DPJ3335", State: "departure", TowerControl: true, TowerRunway: "35L"},
+	}
+	provider := NewTranscriber(nil)
+	for transcript, want := range map[string]string{
+		"blue streak 33 zero three runway 35 left cleared for takeoff": "JIA3303 CTO",
+		"jet card 33 35 runway 35 left line up and wait":               "DPJ3335 LUAW",
+	} {
+		result, err := provider.DecodeTranscript(aircraft, transcript, "")
+		if err != nil {
+			t.Fatalf("%q: unexpected error: %v", transcript, err)
+		}
+		if result != want {
+			t.Errorf("%q: got %q, want %q", transcript, result, want)
+		}
+	}
+}
+
 func TestTowerCommandsNeedTower(t *testing.T) {
 	provider := NewTranscriber(nil)
 	for _, transcript := range []string{

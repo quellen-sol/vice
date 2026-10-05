@@ -250,6 +250,13 @@ func selectCandidate(candidates []callsignMatchResult, pattern CallsignPattern, 
 		return best
 	}
 
+	// One whose airline and flight number were both heard exactly, with
+	// nothing skipped, beats looking for a flight number further on, where
+	// a number may be something else, such as a runway.
+	if best := bestByScore(candidates); best.AirlineScore == 1 && best.FlightScore == 1 && best.Skip == 0 {
+		return &best
+	}
+
 	// Try flight hint disambiguation - look for number nearby that might match flight number
 	if best := findFlightHintMatch(tokens, candidates); best != nil {
 		return best
