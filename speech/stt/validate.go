@@ -90,6 +90,9 @@ type validationRule struct {
 
 // validationRules defines command validation dispatch, tried in order.
 var validationRules = []validationRule{
+	// The tower's runway clearances (CTL, CTO, LUAW, GOAR), ahead of the
+	// C-approach rules.
+	{match: isTowerCommand, validate: validateTowerCommand},
 	// D + digits → descend altitude
 	{match: func(cmd string) bool { return cmd[0] == 'D' && len(cmd) > 1 && IsNumber(cmd[1:]) },
 		validate: func(cmd string, ac Aircraft) string { return validateDescend(cmd[1:], ac) }},
@@ -167,6 +170,9 @@ var validationRules = []validationRule{
 func validateCommand(cmd string, ac Aircraft) string {
 	if len(cmd) == 0 {
 		return "empty command"
+	}
+	if err := validateOnGround(cmd, ac); err != "" {
+		return err
 	}
 	for _, rule := range validationRules {
 		if rule.match(cmd) {
@@ -363,7 +369,8 @@ func filterIncompatibleCommands(commands []string) ([]string, []string) {
 	// Check if there's a cleared approach command (C{approach} but not CVS or CAC)
 	hasApproachClearance := false
 	for _, cmd := range commands {
-		if len(cmd) > 1 && cmd[0] == 'C' && !isViaProcedure(cmd) && cmd != "CAC" && !IsNumber(cmd[1:]) {
+		if len(cmd) > 1 && cmd[0] == 'C' && !isViaProcedure(cmd) && cmd != "CAC" && !IsNumber(cmd[1:]) &&
+			!isTowerCommand(cmd) {
 			// Check it's not a cross-fix command (contains /)
 			if !strings.Contains(cmd, "/") {
 				hasApproachClearance = true

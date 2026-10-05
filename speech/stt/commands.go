@@ -35,6 +35,9 @@ type categoryRule struct {
 // categoryRules defines command-to-category mappings, tried in order.
 // Categories prevent duplicate commands of the same type in a single transmission.
 var categoryRules = []categoryRule{
+	// The tower's runway clearances, ahead of the C-approach and L-turn
+	// rules their letters would otherwise fall under.
+	{match: isTowerCommand, category: "runway_clearance"},
 	// Advisory commands: named explicitly since their letters collide
 	// with the single-letter command prefixes below (CWT would read as a
 	// C-approach, AP/1/5 as an A-crossing, TRAFFIC as a T-turn).

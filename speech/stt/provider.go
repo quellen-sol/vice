@@ -597,7 +597,10 @@ func (p *Transcriber) BuildAircraftContext(
 	acCtx := make(map[string]Aircraft)
 	lastAddressedCallsign := string(state.LastSTTCallsigns[userTCW])
 
-	for _, trk := range state.Tracks {
+	// A tower controller also talks to aircraft on the ground.
+	tracks := slices.Concat(slices.Collect(maps.Values(state.Tracks)),
+		slices.Collect(maps.Values(state.SurfaceTracks)))
+	for _, trk := range tracks {
 		// Check if the aircraft is on the user's frequency
 		if !state.TCWControlsPosition(userTCW, trk.ControllerFrequency) {
 			continue
@@ -615,6 +618,10 @@ func (p *Transcriber) BuildAircraftContext(
 			ControllerFrequency: string(trk.ControllerFrequency),
 			Route:               trk.RouteFixes,
 			ExpectedDirectFix:   trk.ExpectedDirectFix,
+		}
+		if userWorksTower(state, userTCW, trk) {
+			sttAc.TowerControl = true
+			sttAc.TowerRunway = trk.TowerRunway
 		}
 
 		// Add tracking controller, aircraft type, and assigned altitude from

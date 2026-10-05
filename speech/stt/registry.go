@@ -37,6 +37,7 @@ type sttCommand struct {
 	thenVariant       string      // Output format for "then" variant (e.g., "TD%d")
 	sayAgainOnFail    bool        // If true, emit SAYAGAIN when type parser fails
 	sayAgainMinTokens int         // Minimum tokens consumed before SAYAGAIN triggers (0 = use default)
+	towerOnly         bool        // Only for aircraft whose airport's tower the controller works
 }
 
 // sttCommands holds all registered commands.
@@ -81,6 +82,14 @@ func WithName(name string) CommandOption {
 func WithSayAgainOnFail() CommandOption {
 	return func(c *sttCommand) {
 		c.sayAgainOnFail = true
+	}
+}
+
+// WithTowerOnly limits a template to aircraft whose airport's tower the
+// controller works (Aircraft.TowerControl): the tower's runway clearances.
+func WithTowerOnly() CommandOption {
+	return func(c *sttCommand) {
+		c.towerOnly = true
 	}
 }
 

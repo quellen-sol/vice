@@ -60,6 +60,36 @@ func TestWhisperPromptReportingPoints(t *testing.T) {
 	}
 }
 
+// A tower controller's prompt includes the runway clearance phrases and the
+// callsigns of the aircraft on the ground they're talking to; a radar
+// controller's doesn't include the phrases.
+func TestWhisperPromptTower(t *testing.T) {
+	oldDB := db.DB
+	db.DB = &db.StaticDatabase{Callsigns: map[string]string{"SWA": "Southwest"}}
+	t.Cleanup(func() { db.DB = oldDB })
+
+	prompt := func(position sim.ControlPosition, role av.ControllerRole) string {
+		var ss SimState
+		ss.UserTCW = "TEST"
+		ss.CurrentConsolidation = map[sim.TCW]*sim.TCPConsolidation{"TEST": {PrimaryTCP: sim.TCP(position)}}
+		ss.Controllers = map[sim.ControlPosition]*av.Controller{position: {Role: role, Airport: "KCOS"}}
+		ss.SurfaceTracks = map[av.ADSBCallsign]*sim.Track{
+			"SWA739": {RadarTrack: av.RadarTrack{ADSBCallsign: "SWA739"}, ControllerFrequency: position},
+		}
+		return makeWhisperPrompt(ss)
+	}
+
+	tower := prompt("1W", av.RoleLocal)
+	for _, want := range []string{"cleared for takeoff", "cleared to land", "line up and wait", "Southwest"} {
+		if !strings.Contains(tower, want) {
+			t.Errorf("tower prompt doesn't include %q: %s", want, tower)
+		}
+	}
+	if radar := prompt("1A", ""); strings.Contains(radar, "cleared for takeoff") {
+		t.Errorf("radar controller's prompt includes the tower phrases: %s", radar)
+	}
+}
+
 // fakeSpeaker is an audio engine that takes whatever speech it's given,
 // remembering it and the callbacks to run when it finishes.
 type fakeSpeaker struct {

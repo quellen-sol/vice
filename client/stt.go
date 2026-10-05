@@ -1022,6 +1022,12 @@ func makeWhisperPrompt(state SimState) string {
 		func(_ av.ADSBCallsign, trk *sim.Track) bool {
 			return state.UserControlsPosition(trk.ControllerFrequency)
 		}))
+	// A tower controller also talks to aircraft on the ground.
+	for callsign, trk := range state.SurfaceTracks {
+		if state.UserControlsPosition(trk.ControllerFrequency) {
+			onFrequencyTracks[callsign] = trk
+		}
+	}
 
 	// Deduplicate fixes across aircraft and approaches; each addFix call appends the fix's
 	// telephony to the prompt only if the fix hasn't been added already.
@@ -1238,6 +1244,14 @@ func makeWhisperPrompt(state SimState) string {
 		promptParts = append(promptParts, util.SortedMapKeys(atisLetters)...)
 	}
 
+	// A tower controller's runway clearances, which radar controllers don't issue.
+	if userWorksTower(state) {
+		promptParts = append(promptParts,
+			"cleared for takeoff", "cleared to land", "line up and wait", "go around",
+			"runway", "wind", "contact departure",
+		)
+	}
+
 	// Common command phrases are the least important: the models we use are trained on ATC speech,
 	// so these mostly serve as a gentle bias and are the first to go if the prompt is over the
 	// token limit.
@@ -1262,6 +1276,16 @@ func makeWhisperPrompt(state SimState) string {
 
 	slices.Reverse(promptParts)
 	return strings.Join(promptParts, ", ")
+}
+
+// userWorksTower reports whether the user works local control at an airport.
+func userWorksTower(state SimState) bool {
+	for pos, ctrl := range state.Controllers {
+		if ctrl.Role == av.RoleLocal && state.UserControlsPosition(pos) {
+			return true
+		}
+	}
+	return false
 }
 
 // postSTTEvent posts an STTCommandEvent to the event stream.

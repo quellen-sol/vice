@@ -137,6 +137,7 @@ var multiTokenReplacements = map[string][]string{
 	"six e":          {"60"},
 	"five e":         {"50"},
 	"r on a":         {"runway"},
+	"take off":       {"takeoff"}, // "off" is otherwise a filler word
 	"right a star":   {"via", "star"},
 	"i dead":         {"ident"},
 	"i file":         {"5", "mile"},   // STT error: "five mile" transcribed as "I file"
@@ -271,6 +272,8 @@ var commandVocabulary = map[string]bool{
 	"terminated": true, "resume": true, "own": true, "navigation": true, "vfr": true,
 	// Discourse
 	"disregard": true, "negative": true, "further": true, "then": true,
+	// Tower runway clearances
+	"takeoff": true, "line": true, "lineup": true, "wait": true, "around": true,
 }
 
 // processCommandVocabulary passes known command words through untouched.

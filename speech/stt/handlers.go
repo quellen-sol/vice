@@ -2438,6 +2438,7 @@ func registerAllCommands() {
 		WithKind(kindSignOff),
 	)
 
+	registerTowerCommands()
 }
 
 func formatTrafficCommand(tr trafficResult) string {

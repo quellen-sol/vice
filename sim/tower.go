@@ -444,7 +444,13 @@ func (s *Sim) surfaceTracks() map[av.ADSBCallsign]*Track {
 		if tracks == nil {
 			tracks = make(map[av.ADSBCallsign]*Track)
 		}
-		tracks[callsign] = s.makeTrack(ac)
+		trk := s.makeTrack(ac)
+		if trk.FlightPlan == nil {
+			// It hasn't associated with its flight plan yet, since it
+			// isn't radar visible; give the tower the flight plan.
+			trk.FlightPlan = s.STARSComputer.lookupFlightPlanByACID(ACID(callsign))
+		}
+		tracks[callsign] = trk
 	}
 	return tracks
 }

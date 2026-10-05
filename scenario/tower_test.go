@@ -5,6 +5,7 @@
 package scenario
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/mmp/vice/log"
 	"github.com/mmp/vice/math"
 	"github.com/mmp/vice/sim"
+	"github.com/mmp/vice/speech/stt"
 	"github.com/mmp/vice/util"
 	"github.com/mmp/vice/wx"
 )
@@ -27,6 +29,19 @@ import (
 // left without a landing clearance; it should go around, stay with the tower
 // and be taken away for resequencing once the tower sends it to approach.
 func TestKCOSTowerScenario(t *testing.T) {
+	runKCOSTowerScenario(t, false)
+}
+
+// TestKCOSTowerScenarioVoice works the scenario issuing the runway
+// clearances by voice: each is spoken as a controller would say it, decoded
+// with the speech recognizer's context for the aircraft on the tower's
+// frequency (built from the state the tower's client is sent), and the
+// decoded command run.
+func TestKCOSTowerScenarioVoice(t *testing.T) {
+	runKCOSTowerScenario(t, true)
+}
+
+func runKCOSTowerScenario(t *testing.T, voice bool) {
 	db.InitDB()
 	lg := &log.Logger{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), LogDir: t.TempDir()}
 
@@ -71,8 +86,53 @@ func TestKCOSTowerScenario(t *testing.T) {
 	}
 	fieldElevation := float32(ap.Elevation)
 
+	transcriber := stt.NewTranscriber(nil)
+	phrases := map[string]string{
+		"CTL":  "runway %s cleared to land",
+		"CTO":  "runway %s cleared for takeoff",
+		"LUAW": "runway %s line up and wait",
+	}
+	// speak returns the command the speech recognizer hears for the
+	// controller giving the aircraft the clearance.
+	speak := func(callsign av.ADSBCallsign, cmd string) string {
+		t.Helper()
+		acCtx := transcriber.BuildAircraftContext(s.GetUserState(), sim.TCW(tower))
+		for _, spoken := range util.SortedMapKeys(acCtx) {
+			ac := acCtx[spoken]
+			if ac.Callsign != string(callsign) {
+				continue
+			}
+			if !ac.TowerControl || ac.TowerRunway == "" {
+				t.Fatalf("%s: speech context %+v doesn't have the tower working it", callsign, ac)
+			}
+			rwy := strings.NewReplacer("L", " left", "R", " right", "C", " center").Replace(ac.TowerRunway)
+			// The context's keys spell the NATO alphabet for speech
+			// synthesis ("brahvo"); speak it as whisper writes it. (Whisper
+			// also writes "X-ray", which the decoder can take for an ATIS
+			// letter at the end of a GA callsign whoever the controller is;
+			// that isn't what this test is about.)
+			spoken = strings.NewReplacer("brahvo", "bravo", "pahpah", "papa", "kebeck", "quebec",
+				"x-ray", "xray").Replace(strings.ToLower(spoken))
+			transcript := spoken + " " + fmt.Sprintf(phrases[cmd], rwy)
+			decoded, err := transcriber.DecodeTranscript(acCtx, transcript, "")
+			if err != nil {
+				t.Fatalf("%q: %v", transcript, err)
+			}
+			if want := string(callsign) + " " + cmd; decoded != want {
+				t.Errorf("%q: decoded %q, want %q", transcript, decoded, want)
+			}
+			_, heard, _ := strings.Cut(decoded, " ")
+			return heard
+		}
+		t.Fatalf("%s: not in the speech context", callsign)
+		return ""
+	}
+
 	run := func(callsign av.ADSBCallsign, cmd, wantReadback string) {
 		t.Helper()
+		if _, ok := phrases[cmd]; ok && voice {
+			cmd = speak(callsign, cmd)
+		}
 		res := s.RunAircraftControlCommands(sim.TCW(tower), callsign, cmd, 0, 0)
 		if res.Error != nil {
 			t.Fatalf("%s: %s: %v", callsign, cmd, res.Error)

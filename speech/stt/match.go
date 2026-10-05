@@ -554,6 +554,9 @@ func matchCommands(tokens []Token, startPos int, ac Aircraft, isThen bool, exclu
 	var bestSayAgainPriority int
 
 	for _, cmd := range sttCommands {
+		if cmd.towerOnly && !ac.TowerControl {
+			continue
+		}
 		match, endPos := tryMatchCommand(tokens, startPos, cmd, ac, isThen)
 		consumed := endPos - startPos
 		if consumed <= 0 {

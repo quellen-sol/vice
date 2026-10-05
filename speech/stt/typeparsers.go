@@ -1108,6 +1108,8 @@ func getTypeParser(typeID string) typeParser {
 		return &textParser{}
 	case "atis_letter":
 		return &atisLetterParser{}
+	case "tower_runway":
+		return &towerRunwayParser{}
 	case "garbled_word":
 		return &garbledWordParser{}
 	case "garbled_word_final":
